@@ -12,11 +12,13 @@
 
 #if !defined(CONFIG_MPSL_CX_PIN_FORWARDER)
 #include <mpsl_cx_abstract_interface.h>
+#else
+#include <string.h>
+#include <soc_secure.h>
 #endif
 
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
@@ -31,9 +33,9 @@
  *     nrf_radio_coex: radio_coex_three_wire {
  *         status = "okay";
  *         compatible = "generic-radio-coex-three-wire";
-		req-gpios =     <&gpio1 5 (GPIO_ACTIVE_HIGH)>;
-		pri-dir-gpios = <&gpio1 4 (GPIO_ACTIVE_HIGH)>;
-		grant-gpios =   <&gpio1 6 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+ *         req-gpios =     <&gpio0 24 (GPIO_ACTIVE_HIGH)>;
+ *         pri-dir-gpios = <&gpio0 14 (GPIO_ACTIVE_HIGH)>;
+ *         grant-gpios =   <&gpio0 25 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
  *     };
  * };
  *
@@ -46,13 +48,14 @@
 #error No enabled coex nodes registered in DTS.
 #endif
 
+#if !defined(CONFIG_MPSL_CX_PIN_FORWARDER)
+
 #define REQUEST_LEAD_TIME 0U
 
 static const struct gpio_dt_spec req_spec     = GPIO_DT_SPEC_GET(CX_NODE, req_gpios);
 static const struct gpio_dt_spec pri_dir_spec = GPIO_DT_SPEC_GET(CX_NODE, pri_dir_gpios);
 static const struct gpio_dt_spec grant_spec   = GPIO_DT_SPEC_GET(CX_NODE, grant_gpios);
 
-#if !defined(CONFIG_MPSL_CX_PIN_FORWARDER)
 static mpsl_cx_cb_t callback;
 static struct gpio_callback grant_cb;
 
@@ -279,47 +282,22 @@ SYS_INIT(mpsl_cx_init, POST_KERNEL, CONFIG_MPSL_CX_INIT_PRIORITY);
 #else // !defined(CONFIG_MPSL_CX_PIN_FORWARDER)
 static int mpsl_cx_init(const struct device *dev)
 {
-	if (strcmp(req_spec.port->name, "GPIO_0")==0)
-	{
-		nrf_gpio_pin_mcu_select(req_spec.pin, NRF_GPIO_PIN_MCUSEL_NETWORK);
-	}
-	else if (strcmp(req_spec.port->name, "GPIO_1")==0)
-	{
-		nrf_gpio_pin_mcu_select(req_spec.pin + P0_PIN_NUM, NRF_GPIO_PIN_MCUSEL_NETWORK);
+#if DT_NODE_HAS_PROP(CX_NODE, req_gpios)
+	uint8_t req_pin = NRF_DT_GPIOS_TO_PSEL(CX_NODE, req_gpios);
 
-	}
-	else
-	{
-		__ASSERT(false, "Something wrong with req pin config", NULL);
-	}
+	soc_secure_gpio_pin_mcu_select(req_pin, NRF_GPIO_PIN_MCUSEL_NETWORK);
+#endif
+#if DT_NODE_HAS_PROP(CX_NODE, pri_dir_gpios)
+	uint8_t pri_dir_pin = NRF_DT_GPIOS_TO_PSEL(CX_NODE, pri_dir_gpios);
 
-	if (strcmp(pri_dir_spec.port->name, "GPIO_0")==0)
-	{
-		nrf_gpio_pin_mcu_select(pri_dir_spec.pin, NRF_GPIO_PIN_MCUSEL_NETWORK);
-	}
-	else if (strcmp(pri_dir_spec.port->name, "GPIO_1")==0)
-	{
-		nrf_gpio_pin_mcu_select(pri_dir_spec.pin + P0_PIN_NUM, NRF_GPIO_PIN_MCUSEL_NETWORK);
+	soc_secure_gpio_pin_mcu_select(pri_dir_pin, NRF_GPIO_PIN_MCUSEL_NETWORK);
+#endif
+#if DT_NODE_HAS_PROP(CX_NODE, grant_gpios)
+	uint8_t grant_pin = NRF_DT_GPIOS_TO_PSEL(CX_NODE, grant_gpios);
 
-	}
-	else
-	{
-		__ASSERT(false, "Something wrong with pri pin config", NULL);
-	}
+	soc_secure_gpio_pin_mcu_select(grant_pin, NRF_GPIO_PIN_MCUSEL_NETWORK);
+#endif
 
-	if (strcmp(grant_spec.port->name, "GPIO_0")==0)
-	{
-		nrf_gpio_pin_mcu_select(grant_spec.pin, NRF_GPIO_PIN_MCUSEL_NETWORK);
-	}
-	else if (strcmp(grant_spec.port->name, "GPIO_1")==0)
-	{
-		nrf_gpio_pin_mcu_select(grant_spec.pin + P0_PIN_NUM, NRF_GPIO_PIN_MCUSEL_NETWORK);
-
-	}
-	else
-	{
-		__ASSERT(false, "Something wrong with grant pin config", NULL);
-	}
 	return 0;
 }
 

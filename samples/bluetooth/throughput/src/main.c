@@ -558,7 +558,7 @@ int test_run(const struct shell *shell,
 	uint32_t prog = 0;
 
 	/* a dummy data buffer */
-	static char dummy[256];
+	static char dummy[495];
 
 	if (!default_conn) {
 		shell_error(shell, "Device is disconnected %s",
@@ -593,7 +593,7 @@ int test_run(const struct shell *shell,
 	stamp = k_uptime_get_32();
 
 	while (prog < IMG_SIZE && (k_uptime_get_32() - stamp) < test_duration_limit_ms) {
-		err = bt_throughput_write(&throughput, dummy, 244);
+		err = bt_throughput_write(&throughput, dummy, 495);
 		if (err) {
 			shell_error(shell, "GATT write failed (err %d)", err);
 			break;
@@ -601,7 +601,7 @@ int test_run(const struct shell *shell,
 
 		/* print graphics */
 		printk("%c", img[prog / IMG_X][prog % IMG_X]);
-		data += 244;
+		data += 495;
 		prog++;
 	}
 

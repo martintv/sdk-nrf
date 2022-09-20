@@ -19,7 +19,7 @@ ZEPHYR_BASE = utils.get_projdir("zephyr")
 project = "nRF Connect SDK"
 copyright = "2019-2022, Nordic Semiconductor"
 author = "Nordic Semiconductor"
-version = release = "2.0.99"
+version = release = "2.1.0"
 
 sys.path.insert(0, str(ZEPHYR_BASE / "doc" / "_extensions"))
 sys.path.insert(0, str(NRF_BASE / "doc" / "_extensions"))
@@ -42,6 +42,7 @@ extensions = [
     "sphinx_tabs.tabs",
     "software_maturity_table",
     "sphinx_togglebutton",
+    "notfound.extension",
 ]
 
 linkcheck_ignore = [
@@ -183,6 +184,11 @@ ncs_cache_build_dir = utils.get_builddir()
 ncs_cache_config = NRF_BASE / "doc" / "cache.yml"
 ncs_cache_manifest = NRF_BASE / "west.yml"
 
+# Options for sphinx_notfound_page ---------------------------------------------
+
+notfound_urls_prefix = "/nRF_Connect_SDK/doc/{}/nrf/".format(
+    "latest" if version.endswith("99") else version
+)
 
 def setup(app):
     app.add_css_file("css/nrf.css")

@@ -17,6 +17,7 @@
 #include "location_tracking.h"
 
 #include "connection.h"
+#include "led_control.h"
 
 LOG_MODULE_REGISTER(connection, CONFIG_MQTT_MULTI_SERVICE_LOG_LEVEL);
 
@@ -371,7 +372,7 @@ static void lte_event_handler(const struct lte_lc_evt *const evt)
 				"LTE_EVENT: eDRX parameter update: eDRX: %f, PTW: %f",
 				evt->edrx_cfg.edrx, evt->edrx_cfg.ptw);
 			if (len > 0) {
-				LOG_DBG("%s", log_strdup(log_buf));
+				LOG_DBG("%s", log_buf);
 			}
 		}
 		break;
@@ -469,6 +470,7 @@ int consume_device_message(void)
 	 * message sending.
 	 */
 	LOG_DBG("Attempting to transmit enqueued device message");
+
 	struct nrf_cloud_tx_data mqtt_msg = {
 		.data.ptr = msg,
 		.data.len = strlen(msg),
@@ -501,6 +503,15 @@ int consume_device_message(void)
 	} else {
 		LOG_DBG("Enqueued device message consumed successfully");
 
+		/* Either overwrite the existing pattern with a short success pattern, or just
+		 * disable the previously requested pattern, depending on if we are in verbose mode.
+		 */
+		if (IS_ENABLED(CONFIG_LED_VERBOSE_INDICATION)) {
+			short_led_pattern(LED_SUCCESS);
+		} else {
+			stop_led_pattern();
+		}
+
 		/* Reset the failure counter, since we succeeded. */
 		send_failure_count = 0;
 	}
@@ -522,7 +533,7 @@ int send_device_message(const char *const msg)
 		return -ENOMEM;
 	}
 	strcpy(msg_buf, msg);
-	LOG_DBG("Enqueued message: %s", log_strdup(msg_buf));
+	LOG_DBG("Enqueued message: %s", msg_buf);
 
 	/* Attempt to append data onto message queue. */
 	if (k_msgq_put(&device_message_queue, &msg_buf, K_NO_WAIT)) {
@@ -627,24 +638,76 @@ static int connect_cloud(void)
 }
 
 /**
- * @brief Set up modem and start trying to connect to LTE.
+ * @brief Set up the modem library.
  *
  * @return int - 0 on success, otherwise a negative error code.
  */
-static int setup_lte(void)
+static int setup_modem(void)
 {
-	int err;
-
 	/* Initialize the modem library if required */
 	if (!IS_ENABLED(CONFIG_NRF_MODEM_LIB_SYS_INIT)) {
-		err = nrf_modem_lib_init(NORMAL_MODE);
-		if (err) {
-			LOG_ERR("Modem library initialization failed, error: %d", err);
+		/*
+		 * If there is a pending modem delta firmware update stored, nrf_modem_lib_init will
+		 * attempt to install it before initializing the modem library, and return a
+		 * positive value to indicate that this occurred. This code can be used to
+		 * determine whether the update was successful.
+		 */
+		int ret = nrf_modem_lib_init(NORMAL_MODE);
+
+		if (ret < 0) {
+			LOG_ERR("Modem library initialization failed, error: %d", ret);
+			return ret;
+		} else if (ret == MODEM_DFU_RESULT_OK) {
+			LOG_DBG("Modem library initialized after "
+				"successful modem firmware update.");
+		} else if (ret > 0) {
+			LOG_ERR("Modem library initialized after "
+				"failed modem firmware update, error: %d", ret);
+		} else {
+			LOG_DBG("Modem library initialized.");
 		}
 	}
 
 	/* Register to be notified when the modem has figured out the current time. */
 	date_time_register_handler(date_time_evt_handler);
+
+	return 0;
+}
+
+
+/**
+ * @brief Set up the nRF Cloud library
+ * Must be called before setup_lte, so that pending FOTA jobs can be checked before LTE init.
+ * @return int - 0 on success, otherwise negative error code.
+ */
+static int setup_cloud(void)
+{
+	/* Initialize nrf_cloud library. */
+	struct nrf_cloud_init_param params = {
+		.event_handler = cloud_event_handler,
+		.fmfu_dev_inf = get_full_modem_fota_fdev()
+	};
+
+	int err = nrf_cloud_init(&params);
+
+	if (err) {
+		LOG_ERR("nRF Cloud library could not be initialized, error: %d", err);
+		return err;
+	}
+
+	return 0;
+}
+
+
+/**
+ * @brief Set up LTE and start trying to connect.
+ *
+ * Must be called AFTER setup_cloud to ensure proper operation of FOTA.
+ * @return int - 0 on success, otherwise a negative error code.
+ */
+static int setup_lte(void)
+{
+	int err;
 
 	/* Perform Configuration */
 	if (IS_ENABLED(CONFIG_LTE_AUTO_INIT_AND_CONNECT)) {
@@ -691,40 +754,23 @@ static int setup_lte(void)
 	return 0;
 }
 
-/**
- * @brief Set up the nRF Cloud library
- *
- * @return int - 0 on success, otherwise negative error code.
- */
-static int setup_cloud(void)
+void message_queue_thread_fn(void)
 {
-	/* Initialize nrf_cloud library. */
-	struct nrf_cloud_init_param params = {
-		.event_handler = cloud_event_handler,
-		.fmfu_dev_inf = get_full_modem_fota_fdev()
-	};
-
-	int err = nrf_cloud_init(&params);
-
-	if (err) {
-		LOG_ERR("nRF Cloud library could not be initialized, error: %d", err);
-		return err;
+	/* Continually attempt to consume device messages */
+	while (true) {
+		(void) consume_device_message();
 	}
-
-	return 0;
 }
 
-void manage_connection(void)
+void connection_management_thread_fn(void)
 {
-	/* Enable the modem and start trying to connect to LTE.
-	 * This is done once only, since the modem handles connection persistence then after.
-	 *
-	 * (Once we request connection, the modem will automatically try to reconnect whenever
-	 *  connection is lost).
-	 */
-	LOG_INF("Setting up LTE...");
-	if (setup_lte()) {
-		LOG_ERR("Fatal: LTE setup failed");
+	long_led_pattern(LED_WAITING);
+
+	/* Enable the modem */
+	LOG_INF("Setting up modem...");
+	if (setup_modem()) {
+		LOG_ERR("Fatal: Modem setup failed");
+		long_led_pattern(LED_FAILURE);
 		return;
 	}
 
@@ -734,6 +780,20 @@ void manage_connection(void)
 	LOG_INF("Setting up nRF Cloud library...");
 	if (setup_cloud()) {
 		LOG_ERR("Fatal: nRF Cloud library setup failed");
+		long_led_pattern(LED_FAILURE);
+		return;
+	}
+
+	/* Set up LTE and start trying to connect.
+	 * This is done once only, since the modem handles connection persistence then after.
+	 *
+	 * (Once we request connection, the modem will automatically try to reconnect whenever
+	 *  connection is lost).
+	 */
+	LOG_INF("Setting up LTE...");
+	if (setup_lte()) {
+		LOG_ERR("Fatal: LTE setup failed");
+		long_led_pattern(LED_FAILURE);
 		return;
 	}
 
@@ -742,6 +802,10 @@ void manage_connection(void)
 		/* Wait for LTE to become connected (or re-connected if connection was lost). */
 		LOG_INF("Waiting for connection to LTE network...");
 
+		if (IS_ENABLED(CONFIG_LED_VERBOSE_INDICATION)) {
+			long_led_pattern(LED_WAITING);
+		}
+
 		(void)await_lte_connection(K_FOREVER);
 		LOG_INF("Connected to LTE network");
 
@@ -749,6 +813,7 @@ void manage_connection(void)
 		if (!connect_cloud()) {
 			/* If successful, update the device shadow. */
 			update_shadow();
+
 			/* and then wait patiently for a connection problem. */
 			(void)await_cloud_disconnection(K_FOREVER);
 

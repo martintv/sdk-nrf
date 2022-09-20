@@ -8,6 +8,8 @@
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/audio/audio.h>
+#include <bluetooth/audio/capabilities.h>
+
 /* TODO: Remove when a get_info function is implemented in host */
 #include <../subsys/bluetooth/audio/endpoint.h>
 
@@ -27,7 +29,9 @@ static struct bt_audio_broadcast_sink *broadcast_sink;
 static struct bt_audio_stream streams[CONFIG_LC3_DEC_CHAN_MAX];
 static struct bt_audio_stream *streams_p[ARRAY_SIZE(streams)];
 
-static struct bt_audio_lc3_preset lc3_preset = BT_AUDIO_LC3_BROADCAST_PRESET_48_4_1;
+/* We need to set a location as a pre-compile, this changed in initialize */
+static struct bt_codec codec =
+	BT_CODEC_LC3_CONFIG_48_4(BT_AUDIO_LOCATION_FRONT_LEFT, BT_AUDIO_CONTEXT_TYPE_MEDIA);
 
 /* Create a mask for the maximum BIS we can sync to using the number of streams
  * broadcasted. We add an additional 1 since the bis indexes start from 1 and not
@@ -38,6 +42,7 @@ static uint32_t bis_index_bitfield;
 
 static le_audio_receive_cb receive_cb;
 static bool init_routine_completed;
+static bool playing_state = true;
 
 static int bis_headset_cleanup(bool from_sync_lost_cb);
 
@@ -61,7 +66,7 @@ static void print_codec(const struct bt_codec *codec)
 		LOG_INF("\tOctets per frame: %d (%d kbps)", octets_per_sdu, bitrate);
 		LOG_INF("\tFrames per SDU: %d", bt_codec_cfg_get_frame_blocks_per_sdu(codec, true));
 	} else {
-		LOG_INF("Codec is not LC3, codec_id: 0x%2x", codec->id);
+		LOG_WRN("Codec is not LC3, codec_id: 0x%2x", codec->id);
 	}
 }
 
@@ -74,6 +79,16 @@ static bool bitrate_check(const struct bt_codec *codec)
 		return false;
 	} else if (octets_per_sdu > LE_AUDIO_SDU_SIZE_OCTETS(CONFIG_LC3_BITRATE_MAX)) {
 		LOG_WRN("Bitrate too high");
+		return false;
+	}
+
+	return true;
+}
+
+static bool adv_data_parse(struct bt_data *data, void *user_data)
+{
+	if (data->type == BT_DATA_NAME_COMPLETE && data->data_len == DEVICE_NAME_PEER_LEN) {
+		memcpy((char *)user_data, data->data, data->data_len);
 		return false;
 	}
 
@@ -119,7 +134,7 @@ static void stream_recv_cb(struct bt_audio_stream *stream, const struct bt_iso_r
 
 	recv_cnt++;
 	if ((recv_cnt % 1000U) == 0U) {
-		LOG_INF("Received %u total ISO packets", recv_cnt);
+		LOG_DBG("Received %u total ISO packets", recv_cnt);
 	}
 }
 
@@ -127,11 +142,19 @@ static struct bt_audio_stream_ops stream_ops = { .started = stream_started_cb,
 						 .stopped = stream_stopped_cb,
 						 .recv = stream_recv_cb };
 
-static bool scan_recv_cb(const struct bt_le_scan_recv_info *info, uint32_t broadcast_id)
+static bool scan_recv_cb(const struct bt_le_scan_recv_info *info, struct net_buf_simple *ad,
+			 uint32_t broadcast_id)
 {
-	LOG_INF("Broadcast source found, waiting for PA sync");
+	char name[DEVICE_NAME_PEER_LEN];
 
-	return true;
+	bt_data_parse(ad, adv_data_parse, (void *)name);
+
+	if (strcmp(name, DEVICE_NAME_PEER) == 0) {
+		LOG_INF("Broadcast source %s found", name);
+		return true;
+	}
+
+	return false;
 }
 
 static void scan_term_cb(int err)
@@ -149,11 +172,11 @@ static void pa_synced_cb(struct bt_audio_broadcast_sink *sink, struct bt_le_per_
 		return;
 	}
 
-	LOG_INF("PA synced for broadcast sink with broadcast ID 0x%06X", broadcast_id);
+	LOG_DBG("PA synced for broadcast sink with broadcast ID 0x%06X", broadcast_id);
 
 	broadcast_sink = sink;
 
-	LOG_INF("Broadcast source PA synced, waiting for BASE");
+	LOG_DBG("Broadcast source PA synced, waiting for BASE");
 }
 
 static void pa_sync_lost_cb(struct bt_audio_broadcast_sink *sink)
@@ -165,7 +188,7 @@ static void pa_sync_lost_cb(struct bt_audio_broadcast_sink *sink)
 		return;
 	}
 
-	LOG_INF("Sink disconnected");
+	LOG_DBG("Sink disconnected");
 
 	ret = bis_headset_cleanup(true);
 	if (ret) {
@@ -193,7 +216,7 @@ static void base_recv_cb(struct bt_audio_broadcast_sink *sink, const struct bt_a
 
 	/* Test to ensure there are enough streams for each subgroup */
 	if (base->subgroup_count > CONFIG_BT_AUDIO_BROADCAST_SNK_STREAM_COUNT) {
-		LOG_INF("Too many channels in subgroup");
+		LOG_WRN("Too many channels in subgroup");
 		return;
 	}
 
@@ -204,7 +227,7 @@ static void base_recv_cb(struct bt_audio_broadcast_sink *sink, const struct bt_a
 	}
 	channel = BIT(channel);
 
-	LOG_INF("Received BASE with %u subgroup(s) from broadcast sink", base->subgroup_count);
+	LOG_DBG("Received BASE with %u subgroup(s) from broadcast sink", base->subgroup_count);
 
 	/* Search each subgroup for the BIS of interest */
 	for (size_t i = 0U; i < base->subgroup_count; i++) {
@@ -222,7 +245,7 @@ static void base_recv_cb(struct bt_audio_broadcast_sink *sink, const struct bt_a
 						(struct bt_codec *)&base->subgroups[i].codec;
 					print_codec(streams[i].codec);
 
-					LOG_INF("Stream %u in subgroup %u from broadcast sink", i,
+					LOG_DBG("Stream %u in subgroup %u from broadcast sink", i,
 						j);
 				}
 			}
@@ -234,7 +257,7 @@ static void base_recv_cb(struct bt_audio_broadcast_sink *sink, const struct bt_a
 		ERR_CHK(ret);
 		bis_index_bitfield = base_bis_index_bitfield & bis_index_mask;
 
-		LOG_INF("Waiting for syncable");
+		LOG_DBG("Waiting for syncable");
 	} else {
 		LOG_WRN("Found no suitable streams");
 	}
@@ -244,7 +267,7 @@ static void syncable_cb(struct bt_audio_broadcast_sink *sink, bool encrypted)
 {
 	int ret;
 
-	if (init_routine_completed) {
+	if (streams[0].ep->status.state == BT_AUDIO_EP_STATE_STREAMING || !playing_state) {
 		return;
 	}
 
@@ -255,10 +278,9 @@ static void syncable_cb(struct bt_audio_broadcast_sink *sink, bool encrypted)
 
 	LOG_INF("Syncing to broadcast");
 
-	ret = bt_audio_broadcast_sink_sync(broadcast_sink, bis_index_bitfield, streams_p,
-					   &lc3_preset.codec, NULL);
+	ret = bt_audio_broadcast_sink_sync(broadcast_sink, bis_index_bitfield, streams_p, NULL);
 	if (ret) {
-		LOG_ERR("Unable to sync to broadcast source");
+		LOG_WRN("Unable to sync to broadcast source, ret: %d", ret);
 		return;
 	}
 
@@ -272,12 +294,41 @@ static struct bt_audio_broadcast_sink_cb broadcast_sink_cbs = { .scan_recv = sca
 								.base_recv = base_recv_cb,
 								.syncable = syncable_cb };
 
+static struct bt_audio_capability capabilities = {
+	.dir = BT_AUDIO_DIR_SINK,
+	.codec = &codec,
+};
+
 static void initialize(le_audio_receive_cb recv_cb)
 {
+	int ret;
 	static bool initialized;
+	enum audio_channel channel;
 
 	if (!initialized) {
 		receive_cb = recv_cb;
+
+		ret = channel_assignment_get(&channel);
+		if (ret) {
+			/* Channel is not assigned yet: use default */
+			channel = AUDIO_CHANNEL_DEFAULT;
+		}
+		if (channel == AUDIO_CH_L) {
+			ret = bt_audio_capability_set_location(BT_AUDIO_DIR_SINK,
+							       BT_AUDIO_LOCATION_FRONT_LEFT);
+		} else {
+			ret = bt_audio_capability_set_location(BT_AUDIO_DIR_SINK,
+							       BT_AUDIO_LOCATION_FRONT_RIGHT);
+		}
+		if (ret) {
+			LOG_ERR("Location set failed");
+		}
+
+		ret = bt_audio_capability_register(&capabilities);
+		if (ret) {
+			LOG_ERR("Capability register failed (ret %d)", ret);
+			ERR_CHK(ret);
+		}
 
 		bt_audio_broadcast_sink_register_cb(&broadcast_sink_cbs);
 
@@ -361,12 +412,13 @@ int le_audio_volume_mute(void)
 
 int le_audio_play(void)
 {
-	return bt_audio_broadcast_sink_sync(broadcast_sink, bis_index_bitfield, streams_p,
-					    &lc3_preset.codec, NULL);
+	playing_state = true;
+	return 0;
 }
 
 int le_audio_pause(void)
 {
+	playing_state = false;
 	return bt_audio_broadcast_sink_stop(broadcast_sink);
 }
 
@@ -395,7 +447,7 @@ int le_audio_enable(le_audio_receive_cb recv_cb)
 		return ret;
 	}
 
-	LOG_INF("LE Audio enabled");
+	LOG_DBG("LE Audio enabled");
 
 	return 0;
 }
@@ -410,7 +462,7 @@ int le_audio_disable(void)
 		return ret;
 	}
 
-	LOG_INF("LE Audio disabled");
+	LOG_DBG("LE Audio disabled");
 
 	return 0;
 }

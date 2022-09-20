@@ -18,6 +18,7 @@
 #include "connection.h"
 
 #include "location_tracking.h"
+#include "led_control.h"
 
 LOG_MODULE_REGISTER(application, CONFIG_MQTT_MULTI_SERVICE_LOG_LEVEL);
 
@@ -37,14 +38,14 @@ static cJSON *create_timestamped_data_message_object(const char *const appid)
 
 	if (date_time_now(&timestamp)) {
 		LOG_ERR("Failed to create timestamp for data message "
-			"with appid %s", log_strdup(appid));
+			"with appid %s", appid);
 		return NULL;
 	}
 
 	msg_obj = cJSON_CreateObject();
 	if (msg_obj == NULL) {
 		LOG_ERR("Failed to create container object for timestamped data message "
-			"with appid %s", log_strdup(appid));
+			"with appid %s", appid);
 		return NULL;
 	}
 
@@ -59,7 +60,7 @@ static cJSON *create_timestamped_data_message_object(const char *const appid)
 	    (cJSON_AddNumberToObject(msg_obj, NRF_CLOUD_MSG_TIMESTAMP_KEY,
 					      (double)timestamp)		== NULL)) {
 		LOG_ERR("Failed to populate timestamped data message object "
-			"with appid %s", log_strdup(appid));
+			"with appid %s", appid);
 		cJSON_Delete(msg_obj);
 		return NULL;
 	}
@@ -90,7 +91,7 @@ static int send_sensor_sample(const char *const sensor, double value)
 	if (cJSON_AddNumberToObject(msg_obj, NRF_CLOUD_JSON_DATA_KEY, value) == NULL) {
 		ret = -ENOMEM;
 		LOG_ERR("Failed to append value to %s sample container object ",
-			log_strdup(sensor));
+			sensor);
 		goto cleanup;
 	}
 
@@ -178,8 +179,11 @@ static void on_location_update(const struct location_data * const location_data)
 	}
 }
 
-void main_application(void)
+void main_application_thread_fn(void)
 {
+	/* Wait for first connection before starting the application. */
+	(void)await_connection(K_FOREVER);
+
 	/* Wait for the date and time to become known.
 	 * This is needed both for location services and for sensor sample timestamping.
 	 */

@@ -9,7 +9,6 @@
 #include <net/nrf_cloud.h>
 #include <nrf_cloud_fsm.h>
 #include <zephyr/shell/shell.h>
-#include <zephyr/shell/shell_uart.h>
 #include "mosh_print.h"
 
 #if defined(CONFIG_NRF_CLOUD_AGPS)
@@ -26,6 +25,7 @@ BUILD_ASSERT(
 	IS_ENABLED(CONFIG_NRF_CLOUD_CONNECTION_POLL_THREAD));
 
 extern struct k_work_q mosh_common_work_q;
+extern const struct shell *mosh_shell;
 
 static struct k_work_delayable cloud_reconnect_work;
 #if defined(CONFIG_NRF_CLOUD_PGPS)
@@ -55,7 +55,7 @@ static void cloud_reconnect_work_fn(struct k_work *work)
 	int err = nrf_cloud_connect(NULL);
 
 	if (err == NRF_CLOUD_CONNECT_RES_SUCCESS) {
-		mosh_print("Connection to nRF Cloud established");
+		mosh_print("Connecting to nRF Cloud...");
 	} else if (err == NRF_CLOUD_CONNECT_RES_ERR_ALREADY_CONNECTED) {
 		mosh_print("nRF Cloud connection already established");
 	} else {
@@ -78,9 +78,7 @@ static void notify_pgps(struct k_work *work)
 
 static void cloud_cmd_execute(struct k_work *work)
 {
-	const struct shell *shell = shell_backend_uart_get_ptr();
-
-	shell_execute_cmd(shell, shell_cmd);
+	shell_execute_cmd(mosh_shell, shell_cmd);
 	memset(shell_cmd, 0, CLOUD_CMD_MAX_LENGTH);
 }
 
@@ -178,11 +176,12 @@ static void nrf_cloud_event_handler(const struct nrf_cloud_evt *evt)
 		mosh_print("NRF_CLOUD_EVT_TRANSPORT_CONNECTED");
 		break;
 	case NRF_CLOUD_EVT_READY:
-		mosh_print("NRF_CLOUD_EVT_READY");
+		mosh_print("NRF_CLOUD_EVT_READY: Connection to nRF Cloud established");
 		k_work_submit_to_queue(&mosh_common_work_q, &shadow_update_work);
 		break;
 	case NRF_CLOUD_EVT_TRANSPORT_DISCONNECTED:
-		mosh_print("NRF_CLOUD_EVT_TRANSPORT_DISCONNECTED");
+		mosh_print("NRF_CLOUD_EVT_TRANSPORT_DISCONNECTED: Connection to nRF Cloud "
+			   "disconnected");
 		if (!nfsm_get_disconnect_requested()) {
 			mosh_print("Reconnecting in %d seconds...", reconnection_delay);
 			k_work_reschedule_for_queue(&mosh_common_work_q, &cloud_reconnect_work,

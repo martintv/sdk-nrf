@@ -18,7 +18,8 @@ It provides a highly configurable set of software components to create a Trusted
 This is achieved by a set of secure run time services such as Secure Storage, Cryptography, Audit Logs, and Attestation.
 Additionally, secure boot through MCUboot in TF-M ensures integrity of runtime software and supports firmware upgrade.
 
-Support for TF-M with :ref:`minimal version <tfm_minimal_build>` disabled in |NCS| is currently experimental.
+.. note::
+   Support for TF-M with :ref:`minimal version <tfm_minimal_build>` disabled in |NCS| is currently :ref:`experimental <software_maturity>`.
 
 For official documentation, see the `TF-M documentation`_.
 
@@ -77,7 +78,7 @@ A minimal version of the TF-M secure application is provided in |NCS| to show ho
 
 The secure services supported by this minimal version allow for generating random numbers, and the platform services.
 
-This corresponds to the feature set provided by the :ref:`secure_partition_manager` (SPM).
+This corresponds to the feature set provided by the deprecated :ref:`secure_partition_manager` (SPM).
 
 The minimal version of TF-M is disabled by setting the :kconfig:option:`CONFIG_TFM_PROFILE_TYPE_NOT_SET` option or one of the other build profiles.
 
@@ -162,4 +163,4 @@ If a static partition file is used for the application, make the following chang
 * Rename the ``spm`` partition to ``tfm``.
 * Add a partition called ``tfm_secure`` that spans ``mcuboot_pad`` (if MCUboot is enabled) and ``tfm`` partitions.
 * Add a partition called ``tfm_nonsecure`` that spans the application, and other possible application partitions that must be non-secure.
-* For non-secure storage partitions, place the partitions inside the ``nonsecure_storage`` partition, and enable the configuration :kconfig:option:`CONFIG_TFM_NONSECURE_STORAGE`.
+* For non-secure storage partitions, place the partitions inside the ``nonsecure_storage`` partition.

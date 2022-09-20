@@ -6,6 +6,7 @@
 
 #include <zephyr/console/console.h>
 #include <string.h>
+#include <stdlib.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/types.h>
 
@@ -32,7 +33,9 @@
 #define INTERVAL_LLPM   0x0D02   /* Proprietary  2 ms */
 #define INTERVAL_LLPM_US 2000
 
-static volatile bool test_ready;
+
+static K_SEM_DEFINE(test_ready_sem, 0, 1);
+static bool test_ready;
 static struct bt_conn *default_conn;
 static struct bt_latency latency;
 static struct bt_latency_client latency_client;
@@ -128,6 +131,7 @@ static void discovery_complete(struct bt_gatt_dm *dm, void *context)
 
 	/* Start testing when the GATT service is discovered */
 	test_ready = true;
+	k_sem_give(&test_ready_sem);
 }
 
 static void discovery_service_not_found(struct bt_conn *conn, void *context)
@@ -521,9 +525,7 @@ void main(void)
 	}
 
 	for (;;) {
-		if (test_ready) {
-			test_run(test_duration_s);
-		}
-		k_sleep(K_MSEC(100)); /* give IPC work time to run */
+		k_sem_take(&test_ready_sem, K_FOREVER);
+		test_run(test_duration_s);
 	}
 }

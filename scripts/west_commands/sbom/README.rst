@@ -11,7 +11,7 @@ The Software Bill of Materials (SBOM) is a :ref:`west <zephyr:west>` extension c
 It provides a list of used licenses for an application build or specific files.
 
 .. note::
-    Generating a list of licenses from an application build is experimental.
+    Generating a list of licenses from an application build is :ref:`experimental <software_maturity>`.
     The accuracy of detection is constantly verified.
     Both implementation and usage may change in the future.
 
@@ -115,11 +115,11 @@ You can also mix them, for example, to generate a report for the application and
 
      -d build_directory
 
-  You have to first build the ``build_directory`` with the ``west build`` command using ``Ninja`` as the underlying build tool (default).
+  You have to first build the ``build_directory`` with the ``west build`` command using Ninja as the underlying build tool (default).
   The build must be successful.
   Any change in the application configuration may affect the results, so always rebuild it after reconfiguration and before calling the ``west ncs-sbom``.
 
-  You can skip this option if you are in the application directory and you have a default ``build`` directory there - the same way as in ``west build`` command.
+  You can skip this option if you are in the application directory and you have a default :file:`build` directory there - the same way as in ``west build`` command.
 
   The :ref:`west_sbom Extracting from build` section describes in detail how to extract a list of files from a build directory.
 
@@ -205,15 +205,15 @@ Detectors
 
 The ``ncs-sbom`` command includes the following detectors:
 
-* ``spdx-tag`` - search for the ``SPDX-License-Identifier`` in the source code or the binary file.
+* ``spdx-tag`` - Search for the ``SPDX-License-Identifier`` in the source code or the binary file.
 
   For guidelines, see `SPDX identifier`_. Enabled by default.
 
-* ``full-text`` - compare the contents of the source file with a small database of reference texts.
+* ``full-text`` - Compare the contents of the source file with a small database of reference texts.
 
   The database is part of the ``ncs-sbom`` command. Enabled by default.
 
-* ``scancode-toolkit`` - license detection by the `Scancode-Toolkit`_. Enabled and optional by default.
+* ``scancode-toolkit`` - License detection by the `Scancode-Toolkit`_. Enabled and optional by default.
 
   If the ``scancode`` command is not on your ``PATH``, you can use the ``--scancode`` option to provide it, for example:
 
@@ -223,7 +223,7 @@ The ``ncs-sbom`` command includes the following detectors:
 
   This detector is optional because it is significantly slower than the others.
 
-* ``external-file`` - search for license information in an external file. Enabled by default.
+* ``external-file`` - Search for license information in an external file. Enabled by default.
 
   The external file has the following properties:
 
@@ -245,7 +245,7 @@ The ``ncs-sbom`` command includes the following detectors:
       * NCS-SBOM-Apply-To-File: lib/**/*.lib
       */
 
-* ``cache-database`` - use license information detected and cached earlier in the cache database file.
+* ``cache-database`` - Use license information detected and cached earlier in the cache database file.
   Disabled by default.
 
   Provide the cache database file using the following argument:
@@ -328,10 +328,10 @@ Extracting a list of files from a build directory
 *************************************************
 
 The ``ncs-sbom`` extracts a list of files from a build directory.
-It queries ``ninja`` for the targets and dependencies.
+It queries ninja for the targets and dependencies.
 
 The entry point is the :file:`zephyr/zephyr.elf` target file.
-The script asks ``ninja`` for all input targets of the :file:`zephyr/zephyr.elf` target.
+The script asks ninja for all input targets of the :file:`zephyr/zephyr.elf` target.
 It also asks for all input targets of the previously extracted input targets,
 until it reaches all leaves in the dependency tree.
 The result is a list of all the leaves.
@@ -345,15 +345,15 @@ To change the target or specify multiple targets, you can add them after the bui
 
 There are two additional methods for improving the correctness of the above algorithm:
 
-* Each library is examined using the GNU ``ar`` tool.
+* Each library is examined using the GNU ar tool.
 
-  If the list of files returned by the GNU ``ar`` tool is covered by the list returned from the ``ninja``, the list is assumed to be valid.
+  If the list of files returned by the GNU ar tool is covered by the list returned from the ninja, the list is assumed to be valid.
   Otherwise, the library is assumed to be a leaf, so it is shown in the report and its inputs are not analyzed further.
 
 * The ``ncs-sbom`` parses the :file:`.map` file created during the :file:`zephyr/zephyr.elf` linking.
 
   It provides a list of all object files and libraries linked to the :file:`zephyr/zephyr.elf` file.
-  The script ends with a fatal error if any file in the :file:`.map` file is not visible by ``ninja``.
+  The script ends with a fatal error if any file in the :file:`.map` file is not visible by ninja.
 
   Exceptions are the runtime and standard libraries.
   You can specify the list of exceptions with the ``--allowed-in-map-file-only`` option.

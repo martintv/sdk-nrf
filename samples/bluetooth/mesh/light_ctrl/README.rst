@@ -104,10 +104,12 @@ User interface
 Buttons:
    Can be used to input the out-of-band (OOB) authentication value during provisioning.
    All buttons have the same functionality during this procedure.
+   If the :ref:`emds_readme` feature is enabled and the provisioning and configuration are complete, **Button 4** can be used to trigger storing for data with emergency data storage and halt the system.
 
 LEDs:
    Show the OOB authentication value during provisioning if the "Push button" OOB method is used.
    First LED outputs the current light level of the Light Lightness Server in the first element.
+   If the :ref:`emds_readme` feature is enabled and **Button 4** is pressed LEDs 2 to 4 will light up to show that the board is halted.
 
 .. note::
    :ref:`zephyr:thingy53_nrf5340` supports only one RGB LED.
@@ -134,6 +136,15 @@ FEM support
 
 .. include:: /includes/sample_fem_support.txt
 
+Emergency data storage
+======================
+
+To build this sample with support for emergency data storage, set ``OVERLAY_CONFIG`` to :file:`overlay-emds.conf`.
+This will save replay protection list (RPL) data and some of the :ref:`bt_mesh_lightness_srv_readme` data to the emergency data storage instead of to the :ref:`settings_api`.
+
+See :ref:`cmake_options` for instructions on how to add this option.
+For more information about using configuration overlay files, see :ref:`zephyr:important-build-vars` in the Zephyr documentation.
+
 Building and running
 ********************
 
@@ -149,6 +160,9 @@ Testing
 After programming the sample to your development kit, you can test it by using a smartphone with `nRF Mesh mobile app`_ installed.
 Testing consists of provisioning the device and configuring it for communication with the mesh models.
 
+When the development kit is started, it will keep its previous Light state as the ``BT_MESH_ON_POWER_UP_RESTORE`` is set for the :ref:`bt_mesh_lightness_srv_readme`.
+When :ref:`emds_readme` is enabled it is important that the **Button 4** is used to store the data before the development kit is halted and then restarted.
+
 Provisioning the device
 -----------------------
 
@@ -161,20 +175,20 @@ Configuring models
 
 See :ref:`ug_bt_mesh_model_config_app` for details on how to configure the mesh models with the nRF Mesh mobile app.
 
-Configure the Generic OnOff Server model on each element on the :guilabel:`Mesh Light Fixture` node:
+Configure the Generic OnOff Server model on each element on the **Mesh Light Fixture** node:
 
-* Bind the model to :guilabel:`Application Key 1`.
+* Bind the model to **Application Key 1**.
 
   Once the model is bound to the application key, you can control the first LED on the device.
 * Open the Generic OnOff Server in the second element, then tap :guilabel:`ON` at the bottom of the Generic On Off Controls.
 
 You should now see the following actions:
 
-1. The LED fades from 0% to 100% over a defined transition time following the message :guilabel:`Standby -> On`.
-#. The LED stays at 100% for three seconds :guilabel:`On`.
-#. The LED fades from 100% to :kconfig:option:`CONFIG_BT_MESH_LIGHT_CTRL_SRV_LVL_PROLONG` over five seconds :guilabel:`On -> Prolong`.
-#. The LED stays at :kconfig:option:`CONFIG_BT_MESH_LIGHT_CTRL_SRV_LVL_PROLONG` for three seconds :guilabel:`Prolong`.
-#. The LED fades from :kconfig:option:`CONFIG_BT_MESH_LIGHT_CTRL_SRV_LVL_PROLONG` to 0% over five seconds :guilabel:`Prolong -> Standby`.
+1. The LED fades from 0% to 100% over a defined transition time following the message **Standby > On**.
+#. The LED stays at 100% for three seconds **On**.
+#. The LED fades from 100% to :kconfig:option:`CONFIG_BT_MESH_LIGHT_CTRL_SRV_LVL_PROLONG` over five seconds **On > Prolong**.
+#. The LED stays at :kconfig:option:`CONFIG_BT_MESH_LIGHT_CTRL_SRV_LVL_PROLONG` for three seconds **Prolong**.
+#. The LED fades from :kconfig:option:`CONFIG_BT_MESH_LIGHT_CTRL_SRV_LVL_PROLONG` to 0% over five seconds **Prolong > Standby**.
 
 The default value of :kconfig:option:`CONFIG_BT_MESH_LIGHT_CTRL_SRV_LVL_PROLONG` is 10000 (~15%).
 
@@ -214,3 +228,7 @@ In addition, it uses the following Zephyr libraries:
 * :ref:`zephyr:bluetooth_mesh`:
 
   * ``include/bluetooth/mesh.h``
+
+The sample also uses the following secure firmware component:
+
+* :ref:`Trusted Firmware-M <ug_tfm>`

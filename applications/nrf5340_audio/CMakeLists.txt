@@ -6,14 +6,37 @@
 
 cmake_minimum_required(VERSION 3.20.0)
 
+if (CONFIG_AUDIO_DFU EQUAL 1)
+    set(mcuboot_OVERLAY_CONFIG
+    ${CMAKE_CURRENT_LIST_DIR}/dfu/conf/overlay-mcuboot.conf
+    )
+
+endif()
+
+if (CONFIG_AUDIO_DFU EQUAL 2)
+    set(mcuboot_OVERLAY_CONFIG
+        ${CMAKE_CURRENT_LIST_DIR}/dfu/conf/overlay-mcuboot_external_flash.conf
+    )
+    set(mcuboot_DTC_OVERLAY_FILE ${CMAKE_CURRENT_LIST_DIR}/dfu/conf/overlay-dfu_external_flash.overlay)
+    set(DTC_OVERLAY_FILE ${CMAKE_CURRENT_LIST_DIR}/dfu/conf/overlay-dfu_external_flash.overlay)
+    set(mcuboot_PM_STATIC_YML_FILE ${CMAKE_CURRENT_LIST_DIR}/dfu/conf/pm_dfu_external_flash.yml)
+    set(PM_STATIC_YML_FILE ${CMAKE_CURRENT_LIST_DIR}/dfu/conf/pm_dfu_external_flash.yml)
+endif()
+
+if ((CONFIG_AUDIO_DFU EQUAL 1) OR (CONFIG_AUDIO_DFU EQUAL 2))
+    set(hci_rpmsg_b0n_OVERLAY_CONFIG ${CMAKE_CURRENT_LIST_DIR}/dfu/conf/b0n.conf)
+    if (CONFIG_B0N_MINIMAL)
+        list(APPEND hci_rpmsg_b0n_OVERLAY_CONFIG overlay-minimal-size.conf)
+    endif()
+endif()
+
 # Flag which defines whether application is compiled as gateway/dongle or headset
 add_compile_definitions(HEADSET=1)
 add_compile_definitions(GATEWAY=2)
 
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
-# Set the nRF5340 Audio version. x.x.99 indicates master branch/cutting edge
-project(NRF5340_AUDIO VERSION 0.5.99)
+project(NRF5340_AUDIO)
 
 string(TIMESTAMP NRF5340_AUDIO_CORE_APP_COMP_DATE "%a %b %d %H:%M:%S %Y")
 
@@ -50,28 +73,11 @@ add_subdirectory(src/events)
 add_subdirectory(src/modules)
 add_subdirectory(src/utils)
 
-## LC3
-if (CONFIG_SW_CODEC_LC3_T2_SOFTWARE)
-    if (ZEPHYR_SDK_LC3_MODULE_DIR)
-        add_subdirectory(${ZEPHYR_SDK_LC3_MODULE_DIR} sdk_lc3_bin_dir)
-    else()
-        message(FATAL_ERROR "LC3 repository not found\n"
-                "Path: ${ZEPHYR_SDK_LC3_MODULE_DIR}/CMakeLists.txt\n"
-                "Run 'west config manifest.group-filter +nrf5340_audio' "
-                "and then 'west update'.\n"
-                "If access is denied, contact local Nordic Semiconductor "
-                "support")
-    endif()
-endif()
-
 ## Cirrus Logic
 if (CONFIG_HW_CODEC_CIRRUS_LOGIC)
     if (ZEPHYR_CIRRUS_LOGIC_MODULE_DIR)
         add_subdirectory(${ZEPHYR_CIRRUS_LOGIC_MODULE_DIR} cirrus_logic_bin_dir)
     else()
-        message(FATAL_ERROR "Cirrus Logic/sdk-mcu-drivers repository not found\n"
-            "Path: ${ZEPHYR_CIRRUS_LOGIC_MODULE_DIR}/CMakeLists.txt\n"
-            "Run 'west config manifest.group-filter +nrf5340_audio' "
-            "and then 'west update'.\n")
+        message(FATAL_ERROR "Cirrus Logic/sdk-mcu-drivers repository not found\n")
     endif()
 endif()

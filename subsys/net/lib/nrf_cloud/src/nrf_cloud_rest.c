@@ -226,7 +226,12 @@ static void init_rest_client_request(struct nrf_cloud_rest_context const *const 
 	req->port		= HTTPS_PORT;
 	req->host		= CONFIG_NRF_CLOUD_REST_HOST_NAME;
 	req->tls_peer_verify	= TLS_PEER_VERIFY_REQUIRED;
-	req->timeout_ms		= rest_ctx->timeout_ms;
+
+	if (rest_ctx->timeout_ms <= 0) {
+		req->timeout_ms = SYS_FOREVER_MS;
+	} else {
+		req->timeout_ms = rest_ctx->timeout_ms;
+	}
 
 	req->http_method	= meth;
 
@@ -947,7 +952,7 @@ int nrf_cloud_rest_agps_data_get(struct nrf_cloud_rest_context *const rest_ctx,
 		remain -= ret;
 	}
 
-	LOG_DBG("req url:%s", log_strdup(url));
+	LOG_DBG("req url:%s", url);
 
 	/* Format auth header */
 	ret = generate_auth_header(rest_ctx->auth, &auth_hdr);

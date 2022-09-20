@@ -31,7 +31,7 @@ extern struct k_work_q mosh_common_work_q;
 struct gnss_location_work_data {
 	struct k_work work;
 
-	enum location_cmd_cloud_data_gnss_format format;
+	enum nrf_cloud_gnss_type format;
 
 	/* Data from LOCATION_EVT_LOCATION: */
 	struct location_data location;
@@ -69,7 +69,7 @@ static const char location_get_usage_str[] =
 	"  --gnss_cloud_pvt,   Send acquired GNSS location to nRF Cloud formatted as PVT\n"
 	"  --cellular_timeout, Cellular timeout in milliseconds. Zero means timeout is disabled.\n"
 	"  --cellular_service, Used cellular positioning service:\n"
-	"                      'any' (default), 'nrf', 'here' or 'polte'\n"
+	"                      'any' (default), 'nrf' or 'here'\n"
 	"  --wifi_timeout,     Wi-Fi timeout in milliseconds. Zero means timeout is disabled.\n"
 	"  --wifi_service,     Used Wi-Fi positioning service:\n"
 	"                      'any' (default), 'nrf' or 'here'\n";
@@ -111,7 +111,7 @@ static struct option long_options[] = {
 };
 
 static bool gnss_location_to_cloud;
-static enum location_cmd_cloud_data_gnss_format gnss_location_to_cloud_format;
+static enum nrf_cloud_gnss_type gnss_location_to_cloud_format;
 
 /******************************************************************************/
 
@@ -141,8 +141,6 @@ static enum location_service location_shell_string_to_service(const char *servic
 		service = LOCATION_SERVICE_NRF_CLOUD;
 	} else if (strcmp(service_str, "here") == 0) {
 		service = LOCATION_SERVICE_HERE;
-	} else if (strcmp(service_str, "polte") == 0) {
-		service = LOCATION_SERVICE_POLTE;
 	}
 
 	return service;
@@ -333,7 +331,7 @@ int location_shell(const struct shell *shell, size_t argc, char **argv)
 	int ret = 0;
 	int long_index = 0;
 
-	gnss_location_to_cloud_format = CLOUD_GNSS_FORMAT_PVT;
+	gnss_location_to_cloud_format = NRF_CLOUD_GNSS_TYPE_PVT;
 
 	if (argc < 2) {
 		goto show_usage;
@@ -374,7 +372,7 @@ int location_shell(const struct shell *shell, size_t argc, char **argv)
 			gnss_num_fixes_set = true;
 			break;
 		case LOCATION_SHELL_OPT_GNSS_LOC_CLOUD_NMEA:
-			gnss_location_to_cloud_format = CLOUD_GNSS_FORMAT_NMEA;
+			gnss_location_to_cloud_format = NRF_CLOUD_GNSS_TYPE_NMEA;
 		/* flow-through */
 		case LOCATION_SHELL_OPT_GNSS_LOC_CLOUD_PVT:
 			gnss_location_to_cloud = true;
@@ -405,8 +403,7 @@ int location_shell(const struct shell *shell, size_t argc, char **argv)
 
 		case LOCATION_SHELL_OPT_WIFI_SERVICE:
 			wifi_service = location_shell_string_to_service(optarg);
-			if (wifi_service == MOSH_LOC_SERVICE_NONE ||
-			    wifi_service == LOCATION_SERVICE_POLTE) {
+			if (wifi_service == MOSH_LOC_SERVICE_NONE) {
 				mosh_error("Unknown Wi-Fi positioning service. See usage:");
 				goto show_usage;
 			}

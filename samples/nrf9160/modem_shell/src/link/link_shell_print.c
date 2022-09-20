@@ -68,6 +68,27 @@ void link_shell_print_modem_sleep_notif(const struct lte_lc_evt *const evt)
 	}
 }
 
+void link_shell_print_modem_domain_event(enum lte_lc_modem_evt modem_evt)
+{
+	switch (modem_evt) {
+	case LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE:
+		mosh_print("Modem domain event: Light search done");
+		break;
+	case LTE_LC_MODEM_EVT_SEARCH_DONE:
+		mosh_print("Modem domain event: Search done");
+		break;
+	case LTE_LC_MODEM_EVT_RESET_LOOP:
+		mosh_print("Modem domain event: Reset loop");
+		break;
+	case LTE_LC_MODEM_EVT_BATTERY_LOW:
+		mosh_print("Modem domain event: Battery low");
+		break;
+	case LTE_LC_MODEM_EVT_OVERHEATED:
+		mosh_print("Modem domain event: Overheated");
+		break;
+	}
+}
+
 const char *link_shell_funmode_to_string(int funmode, char *out_str_buff)
 {
 	struct mapping_tbl_item const mapping_table[] = {
@@ -82,6 +103,18 @@ const char *link_shell_funmode_to_string(int funmode, char *out_str_buff)
 		{ LTE_LC_FUNC_MODE_ACTIVATE_UICC, "UICC on" },
 		{ LTE_LC_FUNC_MODE_OFFLINE_UICC_ON, "flightmode but UICC on" },
 		{ LINK_FUNMODE_NONE, "unknown" },
+		{ -1, NULL }
+	};
+
+	return link_shell_map_to_string(mapping_table, funmode, out_str_buff);
+}
+
+const char *link_shell_redmob_mode_to_string(int funmode, char *out_str_buff)
+{
+	struct mapping_tbl_item const mapping_table[] = {
+		{ LTE_LC_REDUCED_MOBILITY_DEFAULT, "default" },
+		{ LTE_LC_REDUCED_MOBILITY_NORDIC, "nordic" },
+		{ LTE_LC_REDUCED_MOBILITY_DISABLED, "disabled" },
 		{ -1, NULL }
 	};
 

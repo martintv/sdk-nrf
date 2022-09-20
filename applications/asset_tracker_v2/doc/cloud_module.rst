@@ -96,6 +96,13 @@ The client libraries supported by the cloud wrapper API all implement their own 
 This enables the cloud to issue FOTA updates and update the application and modem firmware while the device is in field.
 For additional documentation on the various FOTA implementations, refer to the respective client library documentation linked to in :ref:`Integration layers <integration_layers>`.
 
+Full modem FOTA updates are only supported by nRF Cloud.
+This application implements full modem FOTA only for the nRF9160 development kit version 1.0.1 and higher.
+To enable full modem FOTA, add the ``-DOVERLAY_CONFIG=overlay-full_modem_fota.conf`` parameter to your build command.
+
+Also, specify your development kit version by appending it to the board name.
+For example, if your development kit version is 1.0.1, use the board name ``nrf9160dk_nrf9160_ns@1_0_1`` in your build command.
+
 Connection awareness
 ====================
 
@@ -170,17 +177,20 @@ Configurations for Azure IoT Hub library
 
 To enable communication with Azure IoT Hub, set the following options in the :file:`overlay-azure.conf` file:
 
-* :kconfig:option:`CONFIG_AZURE_IOT_HUB_DPS_HOSTNAME`
 * :kconfig:option:`CONFIG_AZURE_IOT_HUB_DPS_ID_SCOPE`
 * :kconfig:option:`CONFIG_AZURE_IOT_HUB_SEC_TAG`
 * :kconfig:option:`CONFIG_AZURE_FOTA_SEC_TAG`
 
+If not using the default DPS (Device Provisioning Service) host, ensure that the hostname option is correctly set using the following Kconfig option:
+
+* :kconfig:option:`CONFIG_AZURE_IOT_HUB_DPS_HOSTNAME`
+
 Configurations for LwM2M integration layer
 ------------------------------------------
 
-When building for LwM2M, the cloud module is configured to communicate with AVSystem's `Coiote Device Management`_ by default, using a bootstrap server with a runtime provisioned `Pre-shared key (PSK)`_.
-This enables the application to work out of the box with `Coiote Device Management`_, if the device has been correctly added to the service.
-To allow the application to communicate with other services, modify the default configuration by changing the following Kconfig options:
+When building for LwM2M, the cloud module's default configuration is to communicate with AVSystem's `Coiote Device Management`_, with a runtime provisioned `Pre-shared key (PSK)`_ set by the :kconfig:option:`CONFIG_LWM2M_INTEGRATION_PSK` option.
+This enables the device to work with `Coiote Device Management`_ without provisioning the PSK to the modem before running the application.
+To allow the device to communicate with other LwM2M servers, modify the default configuration by changing the following Kconfig options:
 
 * :kconfig:option:`CONFIG_LWM2M_CLIENT_UTILS_SERVER`
 * :kconfig:option:`CONFIG_LWM2M_RD_CLIENT_SUPPORT_BOOTSTRAP`
@@ -188,7 +198,14 @@ To allow the application to communicate with other services, modify the default 
 * :kconfig:option:`CONFIG_LWM2M_INTEGRATION_PSK`
 * :kconfig:option:`CONFIG_LWM2M_INTEGRATION_PROVISION_CREDENTIALS`
 
-See :ref:`server setup <server_setup_lwm2m>` for information on how the `Coiote Device Management server`_ can be configured to communicate with the application.
+See :ref:`server setup <server_setup_lwm2m>` for information on how you can configure the `Coiote Device Management server`_ to communicate with the application using the default PSK.
+
+.. important::
+   In production, it is not recommended to use the default PSK that is automatically provisioned by the application.
+   If possible, bootstrapping should be enabled to periodically change the PSK used in the connection.
+   The PSK should also be provisioned to the modem before running the application.
+   Disable the :kconfig:option:`CONFIG_LWM2M_INTEGRATION_PROVISION_CREDENTIALS` option and provision the PSK to a sec tag set by :kconfig:option:`CONFIG_LWM2M_CLIENT_UTILS_SERVER_TLS_TAG` or :kconfig:option:`CONFIG_LWM2M_CLIENT_UTILS_BOOTSTRAP_TLS_TAG`.
+
 
 In addition to the steps documented in the aforementioned section, you must also enable manipulation of the application's real-time configurations through the `Coiote Device Management`_ console.
 This is documented in :ref:`object_xml_config`.

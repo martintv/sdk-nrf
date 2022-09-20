@@ -19,12 +19,8 @@
 LOG_MODULE_REGISTER(lwm2m_neighbour_cell, CONFIG_LWM2M_CLIENT_UTILS_LOG_LEVEL);
 #define MAX_INSTANCE_COUNT CONFIG_LWM2M_CLIENT_UTILS_SIGNAL_MEAS_INFO_INSTANCE_COUNT
 
-/* Modem returns RSRP and RSRQ as index values which require
- * a conversion to dBm and dB respectively. See modem AT
- * command reference guide for more information.
- */
-#define RSRP_ADJ(rsrp) (rsrp - ((rsrp <= 0) ? 140 : 141))
-#define RSRQ_ADJ(rsrq) (round((rsrq * 0.5) - 19.5))
+static K_SEM_DEFINE(rrc_idle, 0, 1);
+static bool measurement_scheduled;
 
 static void update_signal_meas_object(const struct lte_lc_ncell *const cell, uint16_t index)
 {
@@ -41,9 +37,9 @@ static void update_signal_meas_object(const struct lte_lc_ncell *const cell, uin
 	snprintk(path, sizeof(path), "10256/%" PRIu16 "/2", obj_inst_id);
 	lwm2m_engine_set_s32(path, cell->earfcn);
 	snprintk(path, sizeof(path), "10256/%" PRIu16 "/3", obj_inst_id);
-	lwm2m_engine_set_s32(path, RSRP_ADJ(cell->rsrp));
+	lwm2m_engine_set_s32(path, RSRP_IDX_TO_DBM(cell->rsrp));
 	snprintk(path, sizeof(path), "10256/%" PRIu16 "/4", obj_inst_id);
-	lwm2m_engine_set_s32(path, RSRQ_ADJ(cell->rsrq));
+	lwm2m_engine_set_s32(path, RSRQ_IDX_TO_DB(cell->rsrq));
 	snprintk(path, sizeof(path), "10256/%" PRIu16 "/5", obj_inst_id);
 	lwm2m_engine_set_s32(path, cell->time_diff);
 }
@@ -101,6 +97,24 @@ int lwm2m_update_signal_meas_objects(const struct lte_lc_cells_info *const cells
 	return 0;
 }
 
+void lwm2m_ncell_schedule_measurement(void)
+{
+	if (measurement_scheduled) {
+		LOG_WRN("Measurement already scheduled, waiting for RRC idle");
+		return;
+	}
+
+	if (k_sem_take(&rrc_idle, K_NO_WAIT) == -EBUSY) {
+		LOG_INF("RRC connected, measure when idle");
+		measurement_scheduled = true;
+		return;
+	}
+
+	lte_lc_neighbor_cell_measurement(LTE_LC_NEIGHBOR_SEARCH_TYPE_DEFAULT);
+	measurement_scheduled = false;
+	k_sem_give(&rrc_idle);
+}
+
 void ncell_notification_handler(const struct lte_lc_evt *const evt)
 {
 	switch (evt->type) {
@@ -113,6 +127,18 @@ void ncell_notification_handler(const struct lte_lc_evt *const evt)
 			LOG_ERR("lwm2m_update_signal_meas_objects, error: %d", err);
 		}
 	};
+		break;
+	case LTE_LC_EVT_RRC_UPDATE:
+		if (evt->rrc_mode == LTE_LC_RRC_MODE_CONNECTED) {
+			k_sem_reset(&rrc_idle);
+		} else if (evt->rrc_mode == LTE_LC_RRC_MODE_IDLE) {
+			if (measurement_scheduled) {
+				lte_lc_neighbor_cell_measurement(
+					LTE_LC_NEIGHBOR_SEARCH_TYPE_DEFAULT);
+				measurement_scheduled = false;
+			}
+			k_sem_give(&rrc_idle);
+		}
 		break;
 	default:
 		break;

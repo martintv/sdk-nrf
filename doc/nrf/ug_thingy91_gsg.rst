@@ -47,7 +47,7 @@ Complete the following steps to prepare the Thingy:91 for setup:
    a. Go to `nRF Connect for Desktop Downloads <Download nRF Connect for Desktop_>`_.
    #. Download and install nRF Connect for Desktop.
    #. Open `nRF Connect for Desktop`_.
-   #. Find :guilabel:`Programmer` in the list of applications and click :guilabel:`Install`.
+   #. Find **Programmer** in the list of applications and click :guilabel:`Install`.
 
 .. _download_firmware_thingy91:
 
@@ -124,7 +124,7 @@ Updating the firmware in the nRF52840 SoC
       To update the firmware, complete the following steps:
 
       1. Open `nRF Connect for Desktop`_ and launch the Programmer application.
-      #. Scroll down in the menu on the left and make sure :guilabel:`Enable MCUboot` is selected.
+      #. Scroll down in the menu on the left and make sure **Enable MCUboot** is selected.
 
          .. figure:: /images/programmer_enable_mcuboot.png
             :alt: Programmer - Enable MCUboot
@@ -139,7 +139,7 @@ Updating the firmware in the nRF52840 SoC
 
             Thingy:91 - SW1 SW4 switch
 
-      #. In the Programmer navigation bar, click :guilabel:`Select device`.
+      #. In the Programmer navigation bar, click :guilabel:`SELECT DEVICE`.
          A drop-down menu appears.
 
          .. figure:: /images/programmer_select_device.png
@@ -152,7 +152,7 @@ Updating the firmware in the nRF52840 SoC
          .. note::
             The device entry might not be the same in all cases and can vary depending on the application version and the operating system.
 
-      #. In the menu on the left, click :guilabel:`Add file` in the FILE section, and select :guilabel:`Browse`.
+      #. In the menu on the left, click :guilabel:`Add file` in the **FILE** section, and select :guilabel:`Browse`.
          A file explorer window appears.
 
          .. figure:: /images/programmer_add_file.png
@@ -169,7 +169,7 @@ Updating the firmware in the nRF52840 SoC
 
       #. Click :guilabel:`Open`.
 
-      #. Scroll down in the menu on the left the DEVICE section and click :guilabel:`Write`.
+      #. Scroll down in the menu on the left to the **DEVICE** section and click :guilabel:`Write`.
 
          .. figure:: /images/programmer_hex_write.png
             :alt: Programmer - Writing of HEX files
@@ -183,9 +183,9 @@ Updating the firmware in the nRF52840 SoC
 
             Programmer - MCUboot DFU
 
-      #. In the MCUboot DFU window, click :guilabel:`Write`.
+      #. In the **MCUboot DFU** window, click :guilabel:`Write`.
          When the update is complete, a "Completed successfully" message appears.
-      #. Scroll up in the menu on the left to the FILE section and click :guilabel:`Clear files`.
+      #. Scroll up in the menu on the left to the **FILE** section and click :guilabel:`Clear files`.
 
    .. group-tab:: Through external debug probe
 
@@ -214,13 +214,13 @@ Updating the firmware in the nRF52840 SoC
 
          #. Connect the external debug probe to the computer with a micro-USB cable.
 
-            In the Programmer navigation bar, :guilabel:`No devices available` changes to :guilabel:`Select device`.
+            In the Programmer navigation bar, :guilabel:`No devices available` changes to :guilabel:`SELECT DEVICE`.
 
             .. figure:: /images/programmer_select_device1.png
                :alt: Programmer - Select device
 
-               Programmer - Select device
-         #. Click :guilabel:`Select device` and select the appropriate debug probe entry from the drop-down list.
+               Programmer - SELECT DEVICE
+         #. Click :guilabel:`SELECT DEVICE` and select the appropriate debug probe entry from the drop-down list.
 
             Select nRF9160 DK from the list.
 
@@ -234,7 +234,7 @@ Updating the firmware in the nRF52840 SoC
       #. Set the SWD selection switch **SW2** to **nRF52** on the Thingy:91.
          See `SWD Select`_ for more information on the switch.
 
-      #. In the menu on the left, click :guilabel:`Add file` in the FILE section, and select :guilabel:`Browse`.
+      #. In the menu on the left, click :guilabel:`Add file` in the **FILE** section, and select :guilabel:`Browse`.
          A file explorer window appears.
 
          .. figure:: /images/programmer_add_file1.png
@@ -249,7 +249,7 @@ Updating the firmware in the nRF52840 SoC
 
       #. Select the Connectivity bridge firmware file.
       #. Click :guilabel:`Open`.
-      #. Scroll down in the menu on the left to the DEVICE section and click :guilabel:`Erase & write`.
+      #. Scroll down in the menu on the left to the **DEVICE** section and click :guilabel:`Erase & write`.
          The update is completed when the animation in Programmer's Device memory layout window ends.
 
          .. figure:: /images/programmer_ext_debug_hex_write.png
@@ -257,7 +257,7 @@ Updating the firmware in the nRF52840 SoC
 
             Programming using External debug probe
 
-      #. Scroll up in the menu on the left to the FILE section and click :guilabel:`Clear files`.
+      #. Scroll up in the menu on the left to the **FILE** section and click :guilabel:`Clear files`.
 
 .. rst-class:: numbered-step
 
@@ -273,7 +273,7 @@ Update the modem firmware on the nRF9160 SiP
      To update the modem firmware using USB, complete the following steps:
 
       1. Open `nRF Connect for Desktop`_ and launch the Programmer application if you do not have it open already.
-      #. Make sure that :guilabel:`Enable MCUboot` is selected.
+      #. Make sure that **Enable MCUboot** is selected.
       #. Switch off the Thingy:91.
       #. Press **SW3** while switching **SW1** to the **ON** position.
 
@@ -284,7 +284,7 @@ Update the modem firmware on the nRF9160 SiP
 
       #. In the menu, select Thingy:91.
 
-      #. In the menu on the left, click :guilabel:`Add file` in the FILE section, and select :guilabel:`Browse`.
+      #. In the menu on the left, click :guilabel:`Add file` in the **FILE** section, and select :guilabel:`Browse`.
          A file explorer window appears.
 
          .. figure:: /images/programmer_add_file.png
@@ -304,7 +304,7 @@ Update the modem firmware on the nRF9160 SiP
 
       .. update_modem_end
 
-      8. In the Programmer application, scroll down in the menu on the left to the DEVICE section and click :guilabel:`Write`.
+      8. In the Programmer application, scroll down in the menu on the left to the **DEVICE** section and click :guilabel:`Write`.
 
          .. figure:: /images/programmer_usb_update_modem.png
             :alt: Programmer - Update modem
@@ -318,8 +318,8 @@ Update the modem firmware on the nRF9160 SiP
 
             Programmer - Modem DFU via MCUboot
 
-      #. In the Modem DFU via MCUboot window, click :guilabel:`Write`.
-         When the update is complete, a "Completed successfully" message appears.
+      #. In the **Modem DFU via MCUboot** window, click :guilabel:`Write`.
+         When the update is complete, a **Completed successfully** message appears.
 
    .. group-tab:: Through external debug probe
 
@@ -328,7 +328,7 @@ Update the modem firmware on the nRF9160 SiP
       1. Open `nRF Connect for Desktop`_ and launch the Programmer application and :ref:`prepare the hardware <prepare_hw_ext_dp>` if you have not done it already.
       #. Set the SWD selection switch **SW2** to **nRF91** on the Thingy:91.
 
-      #. In the menu on the left, click :guilabel:`Add file` in the FILE section, and select :guilabel:`Browse`.
+      #. In the menu on the left, click :guilabel:`Add file` in the **FILE** section, and select :guilabel:`Browse`.
          A file explorer window appears.
 
          .. figure:: /images/programmer_add_file1.png
@@ -343,7 +343,7 @@ Update the modem firmware on the nRF9160 SiP
             Do not extract the modem firmware zip file.
 
       #. Select the zip file and click :guilabel:`Open`.
-      #. In the Programmer application, scroll down in the menu on the left to the DEVICE section and click :guilabel:`Write`.
+      #. In the Programmer application, scroll down in the menu on the left to the **DEVICE** section and click :guilabel:`Write`.
 
          .. figure:: /images/programmer_ext_debug_update_modem.png
             :alt: Programmer - Update modem
@@ -357,11 +357,11 @@ Update the modem firmware on the nRF9160 SiP
 
             Programmer - Modem DFU
 
-      #. In the Modem DFU window, click :guilabel:`Write`.
+      #. In the **Modem DFU** window, click :guilabel:`Write`.
          When the update is complete, a "Completed successfully" message appears.
 
          .. note::
-            If you have issues updating modem firmware, click :guilabel:`Erase all` before trying to update the modem again. In this case, the contents of the flash memory are deleted and the applications must be reprogrammed.
+            Before trying to update the modem again, click the :guilabel:`Erase all` button. In this case, the contents of the flash memory are deleted and the applications must be reprogrammed.
 
 ..
 
@@ -379,7 +379,7 @@ Program the nRF9160 SiP application
       To program the application firmware using USB, complete the following steps:
 
       1. Open `nRF Connect for Desktop`_ and launch the Programmer application if you have not done already.
-      #. Make sure that :guilabel:`Enable MCUboot` is selected.
+      #. Make sure that **Enable MCUboot** is selected.
       #. Switch off the Thingy:91.
       #. Press **SW3** while switching **SW1** to the **ON** position.
 
@@ -388,7 +388,7 @@ Program the nRF9160 SiP application
 
             Thingy:91 - SW1 SW3 switch
 
-      #. In the Programmer navigation bar, click :guilabel:`Select device`.
+      #. In the Programmer navigation bar, click :guilabel:`SELECT DEVICE`.
          A drop-down menu appears.
 
          .. figure:: /images/programmer_select_device.png
@@ -398,7 +398,7 @@ Program the nRF9160 SiP application
 
       #. In the menu, select Thingy:91.
 
-      #. In the menu on the left, click :guilabel:`Add file` in the FILE section, and select :guilabel:`Browse`.
+      #. In the menu on the left, click :guilabel:`Add file` in the **FILE** section, and select :guilabel:`Browse`.
          A file explorer window appears.
 
          .. figure:: /images/programmer_add_file.png
@@ -419,7 +419,7 @@ Program the nRF9160 SiP application
 
       #. Click :guilabel:`Open`.
 
-      #. Scroll down in the menu on the left to the DEVICE section and click :guilabel:`Write`.
+      #. Scroll down in the menu on the left to the **DEVICE** section and click :guilabel:`Write`.
 
          .. figure:: /images/programmer_hex_write.png
             :alt: Programmer - Writing of HEX files
@@ -433,9 +433,9 @@ Program the nRF9160 SiP application
 
             Programmer - MCUboot DFU
 
-      #. In the MCUboot DFU window, click :guilabel:`Write`.
-         When the update is complete, a "Completed successfully" message appears.
-      #. Scroll up in the menu on the left to the FILE section and click :guilabel:`Clear files`.
+      #. In the **MCUboot DFU** window, click :guilabel:`Write`.
+         When the update is complete, a **Completed successfully** message appears.
+      #. Scroll up in the menu on the left to the **FILE** section and click :guilabel:`Clear files`.
 
    .. group-tab:: Through external debug probe
 
@@ -444,7 +444,7 @@ Program the nRF9160 SiP application
       1. Open `nRF Connect for Desktop`_ and launch the Programmer application and :ref:`prepare the hardware <prepare_hw_ext_dp>` if you have not done it already.
       #. Make sure the SWD selection switch **SW2** is set to **nRF91** on the Thingy:91.
 
-      #. In the menu on the left, click :guilabel:`Add file` in the FILE section, and select :guilabel:`Browse`.
+      #. In the menu on the left, click :guilabel:`Add file` in the **FILE** section, and select :guilabel:`Browse`.
          A file explorer window appears.
 
          .. figure:: /images/programmer_add_file1.png
@@ -464,15 +464,15 @@ Program the nRF9160 SiP application
          If you are connecting over NB-IoT and your operator does not support extended Protocol Configuration Options (ePCO), select the file that has legacy Protocol Configuration Options (PCO) mode enabled.
 
       #. Click :guilabel:`Open`.
-      #. Scroll down in the menu on the left to the DEVICE section and click :guilabel:`Erase & write`.
-         The update is completed when the animation in Programmer's Device memory layout window ends.
+      #. Scroll down in the menu on the left to the **DEVICE** section and click :guilabel:`Erase & write`.
+         The update is completed when the animation in Programmer's **Device memory layout** window ends.
 
          .. figure:: /images/programmer_ext_debug_hex_write.png
             :alt: Programming using External debug probe
 
             Programming using External debug probe
 
-      #. Scroll up in the menu on the left to the FILE section and click :guilabel:`Clear files`.
+      #. Scroll up in the menu on the left to the **FILE** section and click :guilabel:`Clear files`.
 
 ..
 
@@ -480,78 +480,32 @@ You can now disconnect the Thingy:91 from the computer.
 
 Next, you need to create a cloud account if you do not have one already.
 
+Connecting the |DK| to nRF Cloud
+*********************************
+
+.. |DK| replace:: Thingy:91
+
+.. include:: /ug_nrf9160_gs.rst
+   :start-after: dk_nrf_cloud_start
+   :end-before: dk_nrf_cloud_end
+
 Creating an nRF Cloud account
-*****************************
+=============================
 
-You must sign up with `nRF Cloud`_ before you can start using the service.
-
-To create an nRF Cloud account, complete the following steps:
-
-1. Open the `nRF Cloud`_ landing page and click :guilabel:`Register`.
-#. Enter your email address and choose a password, then click :guilabel:`Create Account`.
-   nRF Cloud will send you a verification email.
-#. Copy the 6-digit verification code and paste it into the registration dialog box.
-   If you do not see the verification email, check your junk mail for an email from no-reply@verificationemail.com.
-
-   If you closed the registration dialog box, you can repeat Step 1 and then click :guilabel:`Already have a code?`.
-   Then enter your email and the verification code.
-
-You can now log in to `nRF Cloud`_ with your email and the password your chose.
-After logging in, you are directed to the dashboard view that displays your device count and service usage.
-Next, you need to activate the SIM card for the Thingy:91.
+.. include:: /ug_nrf9160_gs.rst
+   :start-after: nrf_cloud_account_start
+   :end-before: nrf_cloud_account_end
 
 .. _connect_nRF_cloud:
 
 Connecting to nRF Cloud
-***********************
+=======================
 
-To transmit data from your Thingy:91 to nRF Cloud, you must activate your SIM card and add the Thingy:91 to your nRF Cloud account.
+.. include:: /ug_nrf9160_gs.rst
+   :start-after: nrf_cloud_connection_start
+   :end-before: nrf_cloud_connection_end
 
-.. note::
-
-   If you activated your iBasis SIM card before, click :guilabel:`Skip this step` in Step 4 instead of filling in the information.
-
-   If you are using a SIM card from another provider, make sure you activate it through your network operator, then click :guilabel:`Skip this step` in Step 4 instead of filling in the information.
-
-To activate the iBasis Subscriber Identity Module (SIM) card that comes shipped with the Thingy:91 and add the Thingy:91 to nRF Cloud, complete the following steps:
-
-#. Log in to the nRF Cloud portal.
-#. Click the large plus sign in the upper-left corner.
-
-   .. figure:: /images/nrfcloud_plus_sign_callout.png
-      :alt: nRF Cloud
-
-      nRF Cloud
-
-   The Add New window appears.
-
-   .. figure:: /images/nrfcloud_add_lte_device1.png
-      :alt: nRF Cloud - Add new device
-
-      nRF Cloud - Add new device
-
-#. In the Add New window, click :guilabel:`LTE Device`.
-   The Activate SIM Card window appears.
-
-   .. figure:: /images/nrfcloud_activating_sim.png
-      :alt: nRF Cloud - Activate SIM Card window
-
-      nRF Cloud - Activate SIM Card window
-
-#. Complete the following steps in the Activate SIM Card window to Activate your iBasis SIM card:
-
-   a. Enter the 18-digit :term:`Integrated Circuit Card Identifier (ICCID)` or the 19-digit :term:`eUICC Identifier (EID)` in the :guilabel:`SIM ICCID/EID` text box.
-      The ICCID and the EID are printed on the SIM card.
-   #. Enter the :term:`Personal Unblocking Key (PUK)` in the :guilabel:`PUK` text box.
-      The PUK is printed on the SIM card.
-      Reveal the PUK by scratching off the area on the back of the SIM card.
-   #. Accept the Terms and the Privacy Policy.
-   #. Click the :guilabel:`Activate SIM` button.
-
-   After the SIM card is activated, you are redirected to the Add LTE Device window.
-   Leave the browser window open and continue with the next step before you enter the information on this window.
-
-#. Punch out the nano-SIM from the SIM card and plug it into the SIM card holder on the Thingy:91.
+5. Punch out the nano-SIM from the SIM card and plug it into the SIM card holder on the Thingy:91.
 
    .. figure:: /images/thingy91_insert_sim.svg
       :alt: Inserting SIM
@@ -566,14 +520,18 @@ To activate the iBasis Subscriber Identity Module (SIM) card that comes shipped 
 
 #. In the Add LTE Device window from Step 4, enter your device ID and ownership code.
 
-   * **Ownership code**: The ownership code is the PIN or the hardware ID of your Thingy:91, and it is found on the label of your Thingy:91.
+   .. figure:: /images/nrfcloud_add_lte_device.png
+      :alt: nRF Cloud - Add LTE Device window
+
+      nRF Cloud - Add LTE Device window
+
    * **Device ID**: The device ID is composed of *nrf-* and the 15-digit :term:`International Mobile (Station) Equipment Identity (IMEI)` number that is printed on the label of your Thingy:91. It is case sensitive, so make sure all the letters are lower-case.
+   * **Ownership code**: The ownership code is the PIN or the hardware ID of your Thingy:91, and it is found on the label of your Thingy:91.
 
    .. figure:: /images/thingy91_pin_imei.svg
       :alt: PIN and IMEI on Thingy:91
 
       PIN and IMEI on Thingy:91
-
 
    If the label contains a PIN in addition to the IMEI number, enter this pin.
    If it does not contain a PIN, enter the Hardware ID (HWID) HEX code, with or without colons.
@@ -581,7 +539,7 @@ To activate the iBasis Subscriber Identity Module (SIM) card that comes shipped 
 
    .. note::
 
-      The ownership code serves as a password and proves that you own the specific nRF9160 DK.
+      The ownership code serves as a password and proves that you own the specific Thingy:91.
       Therefore, do not share it with anyone.
 
 

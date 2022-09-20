@@ -5,6 +5,7 @@
  */
 
 #include <zephyr/kernel.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <app_event_manager.h>
 #include <math.h>
@@ -210,7 +211,7 @@ static void lte_evt_handler(const struct lte_lc_evt *const evt)
 			       "eDRX parameter update: eDRX: %.2f, PTW: %.2f",
 			       evt->edrx_cfg.edrx, evt->edrx_cfg.ptw);
 		if (len > 0) {
-			LOG_DBG("%s", log_strdup(log_buf));
+			LOG_DBG("%s", log_buf);
 		}
 
 		send_edrx_update(evt->edrx_cfg.edrx, evt->edrx_cfg.ptw);
@@ -441,7 +442,12 @@ int lwm2m_carrier_event_handler(const lwm2m_carrier_event_t *evt)
 		LOG_ERR("LWM2M_CARRIER_EVENT_ERROR");
 		print_carrier_error(evt);
 
-		if (err->type == LWM2M_CARRIER_ERROR_FOTA_FAIL) {
+		bool fota_error = err->type == LWM2M_CARRIER_ERROR_FOTA_PKG ||
+				  err->type == LWM2M_CARRIER_ERROR_FOTA_PROTO ||
+				  err->type == LWM2M_CARRIER_ERROR_FOTA_CONN ||
+				  err->type == LWM2M_CARRIER_ERROR_FOTA_CONN_LOST ||
+				  err->type == LWM2M_CARRIER_ERROR_FOTA_FAIL;
+		if (fota_error) {
 			SEND_EVENT(modem, MODEM_EVT_CARRIER_FOTA_STOPPED);
 		}
 		break;
@@ -491,12 +497,12 @@ static inline int adjust_rsrp(int input, enum sample_type type)
 	switch (type) {
 	case NEIGHBOR_CELL:
 		if (IS_ENABLED(CONFIG_MODEM_NEIGHBOR_CELLS_DATA_CONVERT_RSRP_TO_DBM)) {
-			return input - 140;
+			return RSRP_IDX_TO_DBM(input);
 		}
 		break;
 	case MODEM_DYNAMIC:
 		if (IS_ENABLED(CONFIG_MODEM_DYNAMIC_DATA_CONVERT_RSRP_TO_DBM)) {
-			return input - 140;
+			return RSRP_IDX_TO_DBM(input);
 		}
 		break;
 	default:
@@ -510,7 +516,7 @@ static inline int adjust_rsrp(int input, enum sample_type type)
 static inline int adjust_rsrq(int input)
 {
 	if (IS_ENABLED(CONFIG_MODEM_NEIGHBOR_CELLS_DATA_CONVERT_RSRQ_TO_DB)) {
-		return round(input * 0.5 - 19.5);
+		return round(RSRQ_IDX_TO_DB(input));
 	}
 
 	return input;
@@ -800,8 +806,15 @@ static int battery_data_get(void)
 static int neighbor_cells_measurement_start(void)
 {
 	int err;
+	enum lte_lc_neighbor_search_type type = LTE_LC_NEIGHBOR_SEARCH_TYPE_DEFAULT;
 
-	err = lte_lc_neighbor_cell_measurement(LTE_LC_NEIGHBOR_SEARCH_TYPE_DEFAULT);
+	if (IS_ENABLED(CONFIG_MODEM_NEIGHBOR_SEARCH_TYPE_EXTENDED_LIGHT)) {
+		type = LTE_LC_NEIGHBOR_SEARCH_TYPE_EXTENDED_LIGHT;
+	} else if (IS_ENABLED(CONFIG_MODEM_NEIGHBOR_SEARCH_TYPE_EXTENDED_COMPLETE)) {
+		type = LTE_LC_NEIGHBOR_SEARCH_TYPE_EXTENDED_COMPLETE;
+	}
+
+	err = lte_lc_neighbor_cell_measurement(type);
 	if (err) {
 		LOG_ERR("Failed to start neighbor cell measurements, error: %d", err);
 		return err;

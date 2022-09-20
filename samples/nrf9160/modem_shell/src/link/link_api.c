@@ -31,8 +31,8 @@
 #include <modem/at_cmd_parser.h>
 #include <modem/at_params.h>
 
-extern char at_resp_buf[MOSH_AT_CMD_RESPONSE_MAX_LEN];
-extern struct k_mutex at_resp_buf_mutex;
+extern char mosh_at_resp_buf[MOSH_AT_CMD_RESPONSE_MAX_LEN];
+extern struct k_mutex mosh_at_resp_buf_mutex;
 
 #define AT_CMD_PDP_CONTEXTS_READ "AT+CGDCONT?"
 #define AT_CMD_PDP_CONTEXTS_READ_PARAM_COUNT 12
@@ -58,8 +58,8 @@ static void link_api_context_info_fill_activation_status(
 {
 	char buf[16] = { 0 };
 	const char *p;
-	/* Cannot use global at_resp_buf because this used from link_api_pdp_contexts_read()
-	 * where global at_resp_buf is already used
+	/* Cannot use global mosh_at_resp_buf because this used from link_api_pdp_contexts_read()
+	 * where global mosh_at_resp_buf is already used
 	 */
 	char at_response_str[256];
 	int ret;
@@ -72,7 +72,7 @@ static void link_api_context_info_fill_activation_status(
 		return;
 	}
 
-	/* For each contexts: */
+	/* For each contexts */
 	for (int i = 0; i < ctx_cnt; i++) {
 		/* Search for a string +CGACT: <cid>,<state> */
 		snprintf(buf, sizeof(buf), "+CGACT: %d,1", ctx_tbl[i].cid);
@@ -197,7 +197,7 @@ void link_api_coneval_read_for_shell(void)
 			link_shell_map_to_string(coneval_energy_est_strs,
 				params.energy_estimate, snum));
 	mosh_print("  rsrp:            %d: %ddBm", params.rsrp,
-			(params.rsrp - MODEM_INFO_RSRP_OFFSET_VAL));
+			RSRP_IDX_TO_DBM(params.rsrp));
 	mosh_print("  rsrq:            %d", params.rsrq);
 
 	mosh_print("  snr:             %d: %ddB", params.snr,
@@ -333,7 +333,7 @@ static void link_api_modem_operator_info_read_for_shell(void)
 		mosh_print(
 			"Current rsrp:          %d: %ddBm",
 			xmonitor_resp.rsrp,
-			(xmonitor_resp.rsrp - MODEM_INFO_RSRP_OFFSET_VAL));
+			RSRP_IDX_TO_DBM(xmonitor_resp.rsrp));
 	}
 
 	if (xmonitor_resp.snr >= 0) {
@@ -352,8 +352,8 @@ static int link_api_pdp_context_dynamic_params_get(struct pdp_context_info *popu
 	struct at_param_list param_list = { 0 };
 	size_t param_str_len;
 
-	/* Cannot use global at_resp_buf because this used from link_api_pdp_contexts_read()
-	 * where global at_resp_buf is already used
+	/* Cannot use global mosh_at_resp_buf because this used from link_api_pdp_contexts_read()
+	 * where global mosh_at_resp_buf is already used
 	 */
 	char cgcontrdp_at_rsp_buf[512];
 	char *next_param_str;
@@ -386,7 +386,7 @@ static int link_api_pdp_context_dynamic_params_get(struct pdp_context_info *popu
 		return ret;
 	}
 
-	/* Check how many rows of info do we have: */
+	/* Check how many rows of info do we have */
 	while (strncmp(tmp_ptr, "OK", 2) &&
 	       (tmp_ptr = strstr(tmp_ptr, AT_CMD_PDP_CONTEXT_READ_RSP_DELIM)) != NULL) {
 		tmp_ptr += 2;
@@ -477,7 +477,7 @@ parse:
 		ret = at_params_int_get(&param_list, AT_CMD_PDP_CONTEXT_READ_INFO_MTU_INDEX,
 					&(populated_info->ipv6_mtu));
 		if (ret) {
-			/* Don't care if it fails: */
+			/* Don't care if it fails */
 			ret = 0;
 			populated_info->ipv6_mtu = 0;
 		}
@@ -485,7 +485,7 @@ parse:
 		ret = at_params_int_get(&param_list, AT_CMD_PDP_CONTEXT_READ_INFO_MTU_INDEX,
 					&(populated_info->ipv4_mtu));
 		if (ret) {
-			/* Don't care if it fails: */
+			/* Don't care if it fails */
 			ret = 0;
 			populated_info->ipv4_mtu = 0;
 		}
@@ -494,7 +494,7 @@ parse:
 	if (resp_continues) {
 		at_ptr = next_param_str;
 		iterator++;
-		if (iterator < lines && strncmp(next_param_str, "OK", 2)) {
+		if (iterator < lines) {
 			goto parse;
 		}
 	}
@@ -529,25 +529,25 @@ int link_api_pdp_contexts_read(struct pdp_context_info_array *pdp_info)
 
 	memset(pdp_info, 0, sizeof(struct pdp_context_info_array));
 
-	k_mutex_lock(&at_resp_buf_mutex, K_FOREVER);
-	at_ptr = at_resp_buf;
-	tmp_ptr = at_resp_buf;
+	k_mutex_lock(&mosh_at_resp_buf_mutex, K_FOREVER);
+	at_ptr = mosh_at_resp_buf;
+	tmp_ptr = mosh_at_resp_buf;
 
-	ret = nrf_modem_at_cmd(at_resp_buf, sizeof(at_resp_buf),
+	ret = nrf_modem_at_cmd(mosh_at_resp_buf, sizeof(mosh_at_resp_buf),
 			       AT_CMD_PDP_CONTEXTS_READ);
 	if (ret) {
 		mosh_error("nrf_modem_at_cmd returned err: %d", ret);
 		goto clean_exit;
 	}
 
-	/* Check how many rows/context do we have: */
+	/* Check how many rows/context do we have */
 	while (strncmp(tmp_ptr, "OK", 2) &&
 	       (tmp_ptr = strstr(tmp_ptr, AT_CMD_PDP_CONTEXT_READ_RSP_DELIM)) != NULL) {
 		tmp_ptr += 2;
 		pdp_cnt++;
 	}
 
-	/* Allocate array of PDP info accordingly: */
+	/* Allocate array of PDP info accordingly */
 	pdp_info->array = calloc(pdp_cnt, sizeof(struct pdp_context_info));
 	pdp_info->size = pdp_cnt;
 
@@ -652,7 +652,7 @@ parse:
 	}
 	if (ip_address2 != NULL) {
 		/* Note: If we are here, PDP_addr_2 should be IPv6,
-		 * thus in following ipv4 branch should not be possible:
+		 * thus in following ipv4 branch should not be possible
 		 */
 		family = net_utils_sa_family_from_ip_string(ip_address2);
 		if (family == AF_INET) {
@@ -664,7 +664,7 @@ parse:
 		}
 	}
 
-	/* Get DNS addresses etc.  for this IP context: */
+	/* Get DNS addresses etc. for this IP context */
 	if (populated_info[iterator].pdp_type != PDP_TYPE_NONIP) {
 		(void)link_api_pdp_context_dynamic_params_get(&(populated_info[iterator]));
 	}
@@ -672,19 +672,19 @@ parse:
 	if (resp_continues) {
 		at_ptr = next_param_str;
 		iterator++;
-		if (iterator < pdp_cnt && strncmp(next_param_str, "OK", 2)) {
+		if (iterator < pdp_cnt) {
 			goto parse;
 		}
 	}
 
-	/* ...and finally, fill PDP context activation status for each: */
+	/* ...and finally, fill PDP context activation status for each */
 	link_api_context_info_fill_activation_status(pdp_info);
 
 clean_exit:
 	at_params_list_free(&param_list);
-	/* user need do free pdp_info->array also in case of error */
+	/* User need to free pdp_info->array also in case of error */
 
-	k_mutex_unlock(&at_resp_buf_mutex);
+	k_mutex_unlock(&mosh_at_resp_buf_mutex);
 
 	return ret;
 }
@@ -712,7 +712,12 @@ void link_api_modem_info_get_for_shell(bool connected)
 	}
 
 	/* Get the device id used with nRF Cloud */
+#if defined(CONFIG_NRF_CLOUD_AGPS) || defined(CONFIG_NRF_CLOUD_PGPS) || \
+	defined(CONFIG_NRF_CLOUD_MQTT) || defined(CONFIG_NRF_CLOUD_REST)
 	ret = nrf_cloud_client_id_get(device_id, sizeof(device_id));
+#else
+	ret = -ENOTSUP;
+#endif
 	mosh_print("Device ID:             %s", (ret) ? "Not known" : device_id);
 
 	if (connected) {
@@ -765,7 +770,7 @@ void link_api_modem_info_get_for_shell(bool connected)
 					sprintf(tmp_str, "%d", info_tbl[i].pdn_id);
 				}
 
-				/* Parsed PDP context info: */
+				/* Parsed PDP context info */
 				mosh_print("PDP context info %d:", (i + 1));
 				mosh_print("  CID:                %d", info_tbl[i].cid);
 				mosh_print("  PDN ID:             %s",

@@ -11,6 +11,8 @@
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
 
+#include <bluetooth/adv_prov.h>
+
 #define MODULE ble_adv
 #include <caf/events/module_state_event.h>
 #include <caf/events/ble_common_event.h>
@@ -19,13 +21,8 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(MODULE, CONFIG_CAF_BLE_ADV_LOG_LEVEL);
 
-#define SWIFT_PAIR_SECTION_SIZE 1 /* number of struct bt_data objects */
-
 #define MAX_KEY_LEN 30
 #define PEER_IS_RPA_STORAGE_NAME "peer_is_rpa_"
-
-#include CONFIG_CAF_BLE_ADV_DEF_PATH
-
 
 enum state {
 	STATE_DISABLED,
@@ -49,10 +46,10 @@ struct bond_find_data {
 
 
 static enum state state;
-static bool adv_swift_pair;
+static size_t req_grace_period_s;
 
 static struct k_work_delayable adv_update;
-static struct k_work_delayable sp_grace_period_to;
+static struct k_work_delayable grace_period_end;
 static uint8_t cur_identity = BT_ID_DEFAULT; /* We expect zero */
 
 enum peer_rpa {
@@ -111,9 +108,8 @@ static int ble_adv_stop(void)
 	} else {
 		k_work_cancel_delayable(&adv_update);
 
-		if (IS_ENABLED(CONFIG_CAF_BLE_ADV_SWIFT_PAIR) &&
-		    IS_ENABLED(CONFIG_CAF_BLE_ADV_PM_EVENTS)) {
-			k_work_cancel_delayable(&sp_grace_period_to);
+		if (IS_ENABLED(CONFIG_CAF_BLE_ADV_GRACE_PERIOD)) {
+			k_work_cancel_delayable(&grace_period_end);
 		}
 
 		state = STATE_IDLE;
@@ -169,17 +165,72 @@ static int ble_adv_start_directed(const bt_addr_le_t *addr, bool fast_adv)
 	char addr_str[BT_ADDR_LE_STR_LEN];
 	bt_addr_le_to_str(addr, addr_str, sizeof(addr_str));
 
-	LOG_INF("Direct advertising to %s", log_strdup(addr_str));
+	LOG_INF("Direct advertising to %s", addr_str);
 
 	return 0;
+}
+
+static int update_undirected_advertising(struct bt_le_adv_param *adv_param, bool in_grace_period)
+{
+	struct bond_find_data bond_find_data = {
+		.peer_id = 0,
+		.peer_count = 0,
+	};
+
+	bt_addr_le_copy(&bond_find_data.peer_address, BT_ADDR_LE_ANY);
+	bt_foreach_bond(cur_identity, bond_find, &bond_find_data);
+
+	size_t ad_len = bt_le_adv_prov_get_ad_prov_cnt();
+	size_t sd_len = bt_le_adv_prov_get_sd_prov_cnt();
+	struct bt_data ad[ad_len];
+	struct bt_data sd[sd_len];
+
+	struct bt_le_adv_prov_adv_state state;
+	struct bt_le_adv_prov_feedback fb;
+
+	if (bt_addr_le_cmp(&bond_find_data.peer_address, BT_ADDR_LE_ANY)) {
+		state.bond_cnt = 1;
+	} else {
+		state.bond_cnt = 0;
+	}
+
+	state.in_grace_period = in_grace_period;
+	req_grace_period_s = 0;
+
+	int err = bt_le_adv_prov_get_ad(ad, &ad_len, &state, &fb);
+
+	if (err) {
+		LOG_ERR("Cannot get advertising data (err: %d)", err);
+		return err;
+	}
+
+	req_grace_period_s = MAX(req_grace_period_s, fb.grace_period_s);
+
+	err = bt_le_adv_prov_get_sd(sd, &sd_len, &state, &fb);
+	if (err) {
+		LOG_ERR("Cannot get scan response data (err: %d)", err);
+		return err;
+	}
+
+	req_grace_period_s = MAX(req_grace_period_s, fb.grace_period_s);
+
+	if (req_grace_period_s > 0) {
+		__ASSERT_NO_MSG(IS_ENABLED(CONFIG_CAF_BLE_ADV_GRACE_PERIOD) ||
+				!IS_ENABLED(CONFIG_CAF_BLE_ADV_PM_EVENTS));
+	}
+
+	if (adv_param) {
+		return bt_le_adv_start(adv_param, ad, ad_len, sd, sd_len);
+	} else {
+		return bt_le_adv_update_data(ad, ad_len, sd, sd_len);
+	}
 }
 
 static int ble_adv_start_undirected(const bt_addr_le_t *bond_addr,
 				    bool fast_adv)
 {
 	struct bt_le_adv_param adv_param = {
-		.options = BT_LE_ADV_OPT_CONNECTABLE | BT_LE_ADV_OPT_ONE_TIME |
-			   BT_LE_ADV_OPT_USE_NAME,
+		.options = BT_LE_ADV_OPT_CONNECTABLE | BT_LE_ADV_OPT_ONE_TIME,
 	};
 
 	LOG_INF("Use %s advertising", (fast_adv)?("fast"):("slow"));
@@ -215,19 +266,7 @@ static int ble_adv_start_undirected(const bt_addr_le_t *bond_addr,
 
 	adv_param.id = cur_identity;
 
-	const struct bt_data *ad;
-	size_t ad_size;
-
-	if (bt_addr_le_cmp(bond_addr, BT_ADDR_LE_ANY)) {
-		ad = ad_bonded;
-		ad_size = ARRAY_SIZE(ad_bonded);
-	} else {
-		ad = ad_unbonded;
-		ad_size = ARRAY_SIZE(ad_unbonded);
-		adv_swift_pair = IS_ENABLED(CONFIG_CAF_BLE_ADV_SWIFT_PAIR);
-	}
-
-	return bt_le_adv_start(&adv_param, ad, ad_size, sd, ARRAY_SIZE(sd));
+	return update_undirected_advertising(&adv_param, false);
 }
 
 static int ble_adv_start(bool can_fast_adv)
@@ -296,7 +335,7 @@ error:
 	return err;
 }
 
-static void sp_grace_period_fn(struct k_work *work)
+static void grace_period_fn(struct k_work *work)
 {
 	int err = ble_adv_stop();
 
@@ -308,21 +347,16 @@ static void sp_grace_period_fn(struct k_work *work)
 	}
 }
 
-static int remove_swift_pair_section(void)
+static int enter_grace_period(void)
 {
-	int err = bt_le_adv_update_data(ad_unbonded,
-					(ARRAY_SIZE(ad_unbonded) -
-					 SWIFT_PAIR_SECTION_SIZE),
-					sd, ARRAY_SIZE(sd));
+	size_t used_grace_period = req_grace_period_s;
+	int err = update_undirected_advertising(NULL, true);
 
 	if (!err) {
-		LOG_INF("Swift Pair section removed");
-		adv_swift_pair = false;
+		LOG_INF("Entered grace period");
 
 		k_work_cancel_delayable(&adv_update);
-
-		k_work_reschedule(&sp_grace_period_to,
-				  K_SECONDS(CONFIG_CAF_BLE_ADV_SWIFT_PAIR_GRACE_PERIOD));
+		k_work_reschedule(&grace_period_end, K_SECONDS(used_grace_period));
 
 		state = STATE_GRACE_PERIOD;
 	} else if (err == -EAGAIN) {
@@ -373,9 +407,8 @@ static void init(void)
 
 	k_work_init_delayable(&adv_update, ble_adv_update_fn);
 
-	if (IS_ENABLED(CONFIG_CAF_BLE_ADV_SWIFT_PAIR) &&
-	    IS_ENABLED(CONFIG_CAF_BLE_ADV_PM_EVENTS)) {
-		k_work_init_delayable(&sp_grace_period_to, sp_grace_period_fn);
+	if (IS_ENABLED(CONFIG_CAF_BLE_ADV_GRACE_PERIOD)) {
+		k_work_init_delayable(&grace_period_end, grace_period_fn);
 	}
 
 	/* We should not start advertising before ble_bond is ready.
@@ -494,9 +527,19 @@ static bool handle_ble_peer_event(const struct ble_peer_event *event)
 
 	switch (event->state) {
 	case PEER_STATE_CONNECTED:
-		err = ble_adv_stop();
-		break;
+	{
+		bool wu = false;
 
+		if (IS_ENABLED(CONFIG_CAF_BLE_ADV_GRACE_PERIOD) &&
+		    (state == STATE_GRACE_PERIOD)) {
+			wu = true;
+		}
+		err = ble_adv_stop();
+		if (wu) {
+			APP_EVENT_SUBMIT(new_wake_up_event());
+		}
+		break;
+	}
 	case PEER_STATE_SECURED:
 		if (peer_is_rpa[cur_identity] == PEER_RPA_ERASED) {
 			if (bt_addr_le_is_rpa(bt_conn_get_dst(event->id))) {
@@ -528,6 +571,34 @@ static bool handle_ble_peer_event(const struct ble_peer_event *event)
 
 	if (err) {
 		module_set_state(MODULE_STATE_ERROR);
+	}
+
+	return false;
+}
+
+static bool handle_ble_adv_data_update_event(const struct ble_adv_data_update_event *event)
+{
+	ARG_UNUSED(event);
+
+	int err = 0;
+	bool in_grace_period = false;
+
+	switch (state) {
+	case STATE_GRACE_PERIOD:
+		in_grace_period = true;
+		/* Fall-through */
+
+	case STATE_ACTIVE_FAST:
+	case STATE_ACTIVE_SLOW:
+		err = update_undirected_advertising(NULL, in_grace_period);
+		if (err) {
+			LOG_ERR("Cannot modify advertising data (err %d)", err);
+		}
+		break;
+
+	default:
+		/* Advertising data will be updated on undirected advertising start. */
+		break;
 	}
 
 	return false;
@@ -601,9 +672,9 @@ static bool handle_power_down_event(const struct power_down_event *event)
 	switch (state) {
 	case STATE_ACTIVE_FAST:
 	case STATE_ACTIVE_SLOW:
-		if (IS_ENABLED(CONFIG_CAF_BLE_ADV_SWIFT_PAIR) &&
-		    adv_swift_pair) {
-			err = remove_swift_pair_section();
+		if (IS_ENABLED(CONFIG_CAF_BLE_ADV_GRACE_PERIOD) &&
+		    (req_grace_period_s > 0)) {
+			err = enter_grace_period();
 		} else {
 			err = ble_adv_stop();
 			if (!err) {
@@ -707,6 +778,10 @@ static bool app_event_handler(const struct app_event_header *aeh)
 		return handle_ble_peer_event(cast_ble_peer_event(aeh));
 	}
 
+	if (is_ble_adv_data_update_event(aeh)) {
+		return handle_ble_adv_data_update_event(cast_ble_adv_data_update_event(aeh));
+	}
+
 	if (IS_ENABLED(CONFIG_CAF_BLE_ADV_BLE_BOND_SUPPORTED) &&
 	    is_ble_peer_operation_event(aeh)) {
 		return handle_ble_peer_operation_event(cast_ble_peer_operation_event(aeh));
@@ -730,6 +805,7 @@ static bool app_event_handler(const struct app_event_header *aeh)
 APP_EVENT_LISTENER(MODULE, app_event_handler);
 APP_EVENT_SUBSCRIBE(MODULE, module_state_event);
 APP_EVENT_SUBSCRIBE(MODULE, ble_peer_event);
+APP_EVENT_SUBSCRIBE(MODULE, ble_adv_data_update_event);
 #if CONFIG_CAF_BLE_ADV_BLE_BOND_SUPPORTED
 APP_EVENT_SUBSCRIBE(MODULE, ble_peer_operation_event);
 #endif /* CONFIG_CAF_BLE_ADV_BLE_BOND_SUPPORTED */

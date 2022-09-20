@@ -40,10 +40,10 @@
 #include <modem/at_cmd_parser.h>
 #include <modem/at_params.h>
 
-extern bool uart_disable_during_sleep_requested;
+extern bool uart_shell_disable_during_sleep_requested;
 extern struct k_work_q mosh_common_work_q;
-extern char at_resp_buf[MOSH_AT_CMD_RESPONSE_MAX_LEN];
-extern struct k_mutex at_resp_buf_mutex;
+extern char mosh_at_resp_buf[MOSH_AT_CMD_RESPONSE_MAX_LEN];
+extern struct k_mutex mosh_at_resp_buf_mutex;
 
 #define PDN_CONTEXTS_MAX 11
 struct pdn_activation_status_info {
@@ -138,8 +138,8 @@ static void link_api_get_pdn_activation_status(
 	const char *p;
 	int ret;
 
-	k_mutex_lock(&at_resp_buf_mutex, K_FOREVER);
-	ret = nrf_modem_at_cmd(at_resp_buf, sizeof(at_resp_buf), "AT+CGACT?");
+	k_mutex_lock(&mosh_at_resp_buf_mutex, K_FOREVER);
+	ret = nrf_modem_at_cmd(mosh_at_resp_buf, sizeof(mosh_at_resp_buf), "AT+CGACT?");
 	if (ret) {
 		mosh_error("Cannot get PDP contexts activation states, err: %d", ret);
 		goto exit;
@@ -150,13 +150,13 @@ static void link_api_get_pdn_activation_status(
 		/* Search for a string +CGACT: <cid>,<state> */
 		snprintf(buf, sizeof(buf), "+CGACT: %d,1", i);
 		pdn_act_status_arr[i].cid = i;
-		p = strstr(at_resp_buf, buf);
+		p = strstr(mosh_at_resp_buf, buf);
 		if (p) {
 			pdn_act_status_arr[i].activated = true;
 		}
 	}
 exit:
-	k_mutex_unlock(&at_resp_buf_mutex);
+	k_mutex_unlock(&mosh_at_resp_buf_mutex);
 }
 
 /* ****************************************************************************/
@@ -202,7 +202,7 @@ static void link_cell_change_work(struct k_work *work_item)
 		"LTE cell changed: ID: %d (0x%s), PCI %d, Tracking area: %d (0x%s), Band: %d, RSRP: %d (%ddBm), SNR: %d (%ddB)",
 		xmonitor_resp.cell_id, xmonitor_resp.cell_id_str, xmonitor_resp.pci,
 		xmonitor_resp.tac, xmonitor_resp.tac_str, xmonitor_resp.band,
-		xmonitor_resp.rsrp, (xmonitor_resp.rsrp - MODEM_INFO_RSRP_OFFSET_VAL),
+		xmonitor_resp.rsrp, RSRP_IDX_TO_DBM(xmonitor_resp.rsrp),
 		xmonitor_resp.snr, (xmonitor_resp.snr - LINK_SNR_OFFSET_VALUE));
 }
 
@@ -210,7 +210,7 @@ static void link_cell_change_work(struct k_work *work_item)
 
 static void link_rsrp_signal_handler(char rsrp_value)
 {
-	modem_rsrp = (int8_t)rsrp_value - MODEM_INFO_RSRP_OFFSET_VAL;
+	modem_rsrp = (int8_t)RSRP_IDX_TO_DBM(rsrp_value);
 	k_work_submit_to_queue(&mosh_common_work_q, &modem_info_signal_work);
 }
 
@@ -251,6 +251,7 @@ void link_init(void)
 	link_shell_pdn_init();
 
 	lte_lc_register_handler(link_ind_handler);
+	(void)lte_lc_modem_events_enable();
 
 	if (link_sett_is_dnsaddr_enabled()) {
 		(void)link_setdnsaddr(link_sett_dnsaddr_ip_get());
@@ -299,7 +300,7 @@ void link_ind_handler(const struct lte_lc_evt *const evt)
 				"    TA %s, TA meas time %lld",
 				cur_cell.id, cur_cell.phys_cell_id,
 				cur_cell.mcc, cur_cell.mnc, cur_cell.rsrp,
-				cur_cell.rsrp - MODEM_INFO_RSRP_OFFSET_VAL,
+				RSRP_IDX_TO_DBM(cur_cell.rsrp),
 				cur_cell.rsrq, cur_cell.tac, cur_cell.earfcn,
 				cur_cell.measurement_time,
 				tmp_ta_str,
@@ -319,8 +320,7 @@ void link_ind_handler(const struct lte_lc_evt *const evt)
 				"    phy ID %d, RSRP %d : %ddBm, RSRQ %d, earfcn %d, timediff %d",
 				cells.neighbor_cells[i].phys_cell_id,
 				cells.neighbor_cells[i].rsrp,
-				cells.neighbor_cells[i].rsrp -
-				MODEM_INFO_RSRP_OFFSET_VAL,
+				RSRP_IDX_TO_DBM(cells.neighbor_cells[i].rsrp),
 				cells.neighbor_cells[i].rsrq,
 				cells.neighbor_cells[i].earfcn,
 				cells.neighbor_cells[i].time_diff);
@@ -344,7 +344,7 @@ void link_ind_handler(const struct lte_lc_evt *const evt)
 	case LTE_LC_EVT_MODEM_SLEEP_EXIT:
 		link_shell_print_modem_sleep_notif(evt);
 
-		if (uart_disable_during_sleep_requested) {
+		if (uart_shell_disable_during_sleep_requested) {
 			uart_toggle_power_state_at_event(evt);
 		}
 		break;
@@ -410,6 +410,9 @@ void link_ind_handler(const struct lte_lc_evt *const evt)
 		}
 		break;
 	}
+	case LTE_LC_EVT_MODEM_EVENT:
+		link_shell_print_modem_domain_event(evt->modem_evt);
+		break;
 	default:
 		break;
 	}
@@ -478,14 +481,14 @@ static int link_normal_mode_at_cmds_run(void)
 	int mem_slot_index = LINK_SETT_NMODEAT_MEM_SLOT_INDEX_START;
 	int len;
 
-	k_mutex_lock(&at_resp_buf_mutex, K_FOREVER);
+	k_mutex_lock(&mosh_at_resp_buf_mutex, K_FOREVER);
 	for (; mem_slot_index <= LINK_SETT_NMODEAT_MEM_SLOT_INDEX_END;
 	     mem_slot_index++) {
 		normal_mode_at_cmd =
 			link_sett_normal_mode_at_cmd_str_get(mem_slot_index);
 		len = strlen(normal_mode_at_cmd);
 		if (len) {
-			if (nrf_modem_at_cmd(at_resp_buf, sizeof(at_resp_buf), "%s",
+			if (nrf_modem_at_cmd(mosh_at_resp_buf, sizeof(mosh_at_resp_buf), "%s",
 					     normal_mode_at_cmd) != 0) {
 				mosh_error(
 					"Normal mode AT-command from memory slot %d \"%s\" returned: ERROR",
@@ -494,11 +497,11 @@ static int link_normal_mode_at_cmds_run(void)
 				mosh_print(
 					"Normal mode AT-command from memory slot %d \"%s\" returned:\n\r %s",
 					mem_slot_index, normal_mode_at_cmd,
-					at_resp_buf);
+					mosh_at_resp_buf);
 			}
 		}
 	}
-	k_mutex_unlock(&at_resp_buf_mutex);
+	k_mutex_unlock(&mosh_at_resp_buf_mutex);
 
 	return 0;
 }

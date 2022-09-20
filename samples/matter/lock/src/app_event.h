@@ -19,8 +19,7 @@ struct AppEvent {
 	enum UpdateLedStateEventType : uint8_t { UpdateLedState = FunctionTimer + 1 };
 
 	enum OtherEventType : uint8_t {
-		StartThread = UpdateLedState + 1,
-		StartBleAdvertising,
+		StartBleAdvertising = UpdateLedState + 1,
 #ifdef CONFIG_MCUMGR_SMP_BT
 		StartSMPAdvertising
 #endif
@@ -28,7 +27,7 @@ struct AppEvent {
 
 	AppEvent() = default;
 	AppEvent(LockEventType type, BoltLockManager::OperationSource source) : Type(type), LockEvent{ source } {}
-	explicit AppEvent(FunctionEventType type) : Type(type) {}
+	AppEvent(FunctionEventType type, uint8_t buttonNumber) : Type(type), FunctionEvent{ buttonNumber } {}
 	AppEvent(UpdateLedStateEventType type, LEDWidget *ledWidget) : Type(type), UpdateLedStateEvent{ ledWidget } {}
 	explicit AppEvent(OtherEventType type) : Type(type) {}
 
@@ -41,5 +40,8 @@ struct AppEvent {
 		struct {
 			LEDWidget *LedWidget;
 		} UpdateLedStateEvent;
+		struct {
+			uint8_t ButtonNumber;
+		} FunctionEvent;
 	};
 };

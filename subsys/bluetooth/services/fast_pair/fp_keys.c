@@ -7,6 +7,7 @@
 #include <zephyr/device.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/bluetooth/conn.h>
+#include <zephyr/sys/__assert.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(fast_pair, CONFIG_BT_FAST_PAIR_LOG_LEVEL);
@@ -23,6 +24,8 @@ LOG_MODULE_DECLARE(fast_pair, CONFIG_BT_FAST_PAIR_LOG_LEVEL);
 #define FP_KEY_TIMEOUT				K_SECONDS(10)
 #define FP_KEY_GEN_FAILURE_MAX_CNT		10
 #define FP_KEY_GEN_FAILURE_CNT_RESET_TIMEOUT	K_MINUTES(5)
+
+BUILD_ASSERT(FP_ACCOUNT_KEY_LEN == FP_CRYPTO_AES128_KEY_LEN);
 
 enum fp_state {
 	FP_STATE_INITIAL,
@@ -54,12 +57,22 @@ void bt_fast_pair_set_pairing_mode(bool pairing_mode)
 	user_pairing_mode = pairing_mode;
 }
 
+static void key_timeout(struct fp_procedure *proc)
+{
+	proc->state = FP_STATE_INITIAL;
+	memset(proc->aes_key, EMPTY_AES_KEY_BYTE, sizeof(proc->aes_key));
+}
+
 static void invalidate_key(struct fp_procedure *proc)
 {
 	if (proc->state != FP_STATE_INITIAL) {
-		proc->state = FP_STATE_INITIAL;
-		memset(proc->aes_key, EMPTY_AES_KEY_BYTE, sizeof(proc->aes_key));
-		(void)k_work_cancel_delayable(&proc->timeout);
+		int ret;
+
+		key_timeout(proc);
+
+		ret = k_work_cancel_delayable(&proc->timeout);
+		__ASSERT_NO_MSG(ret == 0);
+		ARG_UNUSED(ret);
 	}
 }
 
@@ -101,7 +114,7 @@ int fp_keys_encrypt(const struct bt_conn *conn, uint8_t *out, const uint8_t *in)
 	}
 
 	if (!err) {
-		err = fp_crypto_aes128_encrypt(out, in, proc->aes_key);
+		err = fp_crypto_aes128_ecb_encrypt(out, in, proc->aes_key);
 	}
 
 	return err;
@@ -124,7 +137,7 @@ int fp_keys_decrypt(const struct bt_conn *conn, uint8_t *out, const uint8_t *in)
 	}
 
 	if (!err) {
-		err = fp_crypto_aes128_decrypt(out, in, proc->aes_key);
+		err = fp_crypto_aes128_ecb_decrypt(out, in, proc->aes_key);
 	}
 
 	return err;
@@ -233,14 +246,22 @@ int fp_keys_generate_key(const struct bt_conn *conn, struct fp_keys_keygen_param
 		invalidate_key(proc);
 		key_gen_failure_cnt++;
 		if (key_gen_failure_cnt >= FP_KEY_GEN_FAILURE_MAX_CNT) {
+			int ret;
+
 			LOG_WRN("Key generation failure limit exceeded");
-			(void)k_work_schedule(&key_gen_failure_cnt_reset,
+			ret = k_work_schedule(&key_gen_failure_cnt_reset,
 					      FP_KEY_GEN_FAILURE_CNT_RESET_TIMEOUT);
+			__ASSERT_NO_MSG(ret == 1);
+			ARG_UNUSED(ret);
 		}
 	} else {
 		key_gen_failure_cnt = 0;
 		if (proc->state == FP_STATE_USE_TEMP_KEY) {
-			(void)k_work_reschedule(&proc->timeout, FP_KEY_TIMEOUT);
+			int ret;
+
+			ret = k_work_schedule(&proc->timeout, FP_KEY_TIMEOUT);
+			__ASSERT_NO_MSG(ret == 1);
+			ARG_UNUSED(ret);
 		}
 	}
 
@@ -279,7 +300,14 @@ void fp_keys_bt_auth_progress(const struct bt_conn *conn, bool authenticated)
 	struct fp_procedure *proc = &fp_procedures[bt_conn_index(conn)];
 
 	if (proc->state == FP_STATE_USE_TEMP_KEY) {
-		(void)k_work_reschedule(&proc->timeout, FP_KEY_TIMEOUT);
+		int ret;
+
+		ret = k_work_cancel_delayable(&proc->timeout);
+		__ASSERT_NO_MSG(ret == 0);
+		ret = k_work_schedule(&proc->timeout, FP_KEY_TIMEOUT);
+		__ASSERT_NO_MSG(ret == 1);
+		ARG_UNUSED(ret);
+
 		if (authenticated) {
 			proc->state = FP_STATE_WAIT_FOR_ACCOUNT_KEY;
 		}
@@ -301,8 +329,11 @@ static void timeout_fn(struct k_work *w)
 {
 	struct fp_procedure *proc = CONTAINER_OF(w, struct fp_procedure, timeout);
 
+	__ASSERT_NO_MSG((proc->state == FP_STATE_USE_TEMP_KEY) ||
+			(proc->state == FP_STATE_WAIT_FOR_ACCOUNT_KEY));
+
 	LOG_WRN("Key discarded (timeout)");
-	invalidate_key(proc);
+	key_timeout(proc);
 }
 
 static int fp_keys_init(const struct device *unused)

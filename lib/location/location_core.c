@@ -161,7 +161,6 @@ static const char *location_core_gnss_accuracy_str(enum location_accuracy accura
 static const char LOCATION_SERVICE_ANY_STR[] = "Any";
 static const char LOCATION_SERVICE_NRF_CLOUD_STR[] = "nRF Cloud";
 static const char LOCATION_SERVICE_HERE_STR[] = "HERE";
-static const char LOCATION_SERVICE_POLTE_STR[] = "Polte";
 
 static const char *location_core_service_str(enum location_service service)
 {
@@ -176,9 +175,6 @@ static const char *location_core_service_str(enum location_service service)
 		break;
 	case LOCATION_SERVICE_HERE:
 		service_str = LOCATION_SERVICE_HERE_STR;
-		break;
-	case LOCATION_SERVICE_POLTE:
-		service_str = LOCATION_SERVICE_POLTE_STR;
 		break;
 	default:
 		__ASSERT_NO_MSG(0);
@@ -206,13 +202,11 @@ int location_core_init(void)
 		.name = "location_api_workq",
 	};
 
-	k_work_queue_start(
-		&location_core_work_q,
-		location_core_stack,
-		K_THREAD_STACK_SIZEOF(location_core_stack),
-		LOCATION_CORE_PRIORITY,
-		&cfg);
-
+	/* location_core_work_q shall not be used in method init functions.
+	 * It's initialized after methods because a second initialization after
+	 * a failing one would result in two calls to k_work_queue_start,
+	 * which is not allowed.
+	 */
 	for (int i = 0; methods_supported[i] != NULL; i++) {
 		err = methods_supported[i]->init();
 		if (err) {
@@ -223,6 +217,13 @@ int location_core_init(void)
 		LOG_DBG("Initialized '%s' method successfully",
 			methods_supported[i]->method_string);
 	}
+
+	k_work_queue_start(
+		&location_core_work_q,
+		location_core_stack,
+		K_THREAD_STACK_SIZEOF(location_core_stack),
+		LOCATION_CORE_PRIORITY,
+		&cfg);
 
 	return 0;
 }
@@ -264,6 +265,7 @@ void location_core_config_log(const struct location_config *config)
 
 	LOG_DBG("  Methods count: %d", config->methods_count);
 	LOG_DBG("  Interval: %d", config->interval);
+	LOG_DBG("  Mode: %d", config->mode);
 	LOG_DBG("  List of methods:");
 
 	for (uint8_t i = 0; i < config->methods_count; i++) {
@@ -273,7 +275,7 @@ void location_core_config_log(const struct location_config *config)
 		LOG_DBG("    Method #%d", i);
 		if (method_api != NULL) {
 			LOG_DBG("      Method type: %s (%d)",
-				log_strdup(method_api->method_string), type);
+				method_api->method_string, type);
 		} else {
 			LOG_DBG("      Method type: Unknown (%d)", type);
 		}
@@ -281,21 +283,20 @@ void location_core_config_log(const struct location_config *config)
 		if (type == LOCATION_METHOD_GNSS) {
 			LOG_DBG("      Timeout: %dms", config->methods[i].gnss.timeout);
 			LOG_DBG("      Accuracy: %s (%d)",
-				log_strdup(location_core_gnss_accuracy_str(
-					config->methods[i].gnss.accuracy)),
+				location_core_gnss_accuracy_str(config->methods[i].gnss.accuracy),
 				config->methods[i].gnss.accuracy);
 		} else if (type == LOCATION_METHOD_CELLULAR) {
 			LOG_DBG("      Timeout: %dms", config->methods[i].cellular.timeout);
 			LOG_DBG("      Service: %s (%d)",
-				log_strdup(location_core_service_str(
-					config->methods[i].cellular.service)),
+				location_core_service_str(config->methods[i].cellular.service),
 				config->methods[i].cellular.service);
+#if defined(CONFIG_LOCATION_METHOD_WIFI)
 		} else if (type == LOCATION_METHOD_WIFI) {
 			LOG_DBG("      Timeout: %dms", config->methods[i].wifi.timeout);
 			LOG_DBG("      Service: %s (%d)",
-				log_strdup(location_core_service_str(
-					config->methods[i].wifi.service)),
+				location_core_service_str(config->methods[i].wifi.service),
 				config->methods[i].wifi.service);
+#endif
 		}
 	}
 }
@@ -406,11 +407,11 @@ void location_core_event_cb(const struct location_data *location)
 		 * but that's up to application to configure.
 		 */
 		sprintf(latitude_str, "%.06f", current_event_data.location.latitude);
-		LOG_DBG("  latitude: %s", log_strdup(latitude_str));
+		LOG_DBG("  latitude: %s", latitude_str);
 		sprintf(longitude_str, "%.06f", current_event_data.location.longitude);
-		LOG_DBG("  longitude: %s", log_strdup(longitude_str));
+		LOG_DBG("  longitude: %s", longitude_str);
 		sprintf(accuracy_str, "%.01f", current_event_data.location.accuracy);
-		LOG_DBG("  accuracy: %s m", log_strdup(accuracy_str));
+		LOG_DBG("  accuracy: %s m", accuracy_str);
 		if (current_event_data.location.datetime.valid) {
 			LOG_DBG("  date: %04d-%02d-%02d",
 				current_event_data.location.datetime.year,
@@ -423,7 +424,7 @@ void location_core_event_cb(const struct location_data *location)
 				current_event_data.location.datetime.ms);
 		}
 		LOG_DBG("  Google maps URL: https://maps.google.com/?q=%s,%s",
-			log_strdup(latitude_str), log_strdup(longitude_str));
+			latitude_str, longitude_str);
 		if (current_config.mode == LOCATION_REQ_MODE_ALL) {
 			/* Get possible next method */
 			previous_method = current_event_data.location.method;

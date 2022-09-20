@@ -27,6 +27,10 @@
 #include "channel_assignment.h"
 #include "streamctrl.h"
 
+#if defined(CONFIG_AUDIO_DFU_ENABLE)
+#include "dfu_entry.h"
+#endif
+
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(main, CONFIG_LOG_MAIN_LEVEL);
 
@@ -206,6 +210,11 @@ void main(void)
 
 	ret = power_module_init();
 	ERR_CHK(ret);
+
+#if defined(CONFIG_AUDIO_DFU_ENABLE)
+	/* Check DFU BTN before Initialize BLE */
+	dfu_entry_check();
+#endif
 
 	/* Initialize BLE, with callback for when BLE is ready */
 	ret = ble_core_init(on_ble_core_ready);

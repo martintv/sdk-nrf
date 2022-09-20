@@ -36,10 +36,9 @@ private:
 	void StartFunctionTimer(uint32_t timeoutInMs);
 
 	void DispatchEvent(const AppEvent &event);
-	void FunctionPressHandler();
-	void FunctionReleaseHandler();
+	void FunctionPressHandler(uint8_t buttonNumber);
+	void FunctionReleaseHandler(uint8_t buttonNumber);
 	void FunctionTimerEventHandler();
-	void StartThreadHandler();
 	void StartBLEAdvertisingHandler();
 
 	static void LockStateChanged(BoltLockManager::State state, BoltLockManager::OperationSource source);
@@ -54,7 +53,14 @@ private:
 
 	friend AppTask &GetAppTask();
 
-	enum class TimerFunction { NoneSelected = 0, SoftwareUpdate, FactoryReset };
+	enum class TimerFunction {
+		NoneSelected = 0,
+		SoftwareUpdate,
+		FactoryReset,
+#if CONFIG_BOARD_NRF7002DK_NRF5340_CPUAPP
+		AdvertisingStart,
+#endif
+	};
 
 	TimerFunction mFunction = TimerFunction::NoneSelected;
 
