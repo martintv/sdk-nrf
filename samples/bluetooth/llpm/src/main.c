@@ -24,7 +24,11 @@
 #include <bluetooth/scan.h>
 #include <bluetooth/gatt_dm.h>
 #include <sdc_hci_vs.h>
-
+#include <drivers/flash.h>
+#include <storage/flash_map.h>
+#include <nrfx_nvmc.h>
+#include <devicetree.h>
+#include "nrf.h"
 #define DEVICE_NAME	CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
 #define INTERVAL_MIN    0x50     /* 80 units,  100 ms */
@@ -32,6 +36,10 @@
 #define INTERVAL_LLPM   0x0D01   /* Proprietary  1 ms */
 #define INTERVAL_LLPM_US 1000
 
+		uint32_t write_buff;
+static uint32_t test_page_first_offset;
+static const struct device *flash_dev;
+static const struct flash_area *flash_area;
 
 static K_SEM_DEFINE(test_ready_sem, 0, 1);
 static bool test_ready;
@@ -74,9 +82,9 @@ void scan_filter_no_match(struct bt_scan_device_info *device_info,
 	char addr[BT_ADDR_LE_STR_LEN];
 
 	bt_addr_le_to_str(device_info->recv_info->addr, addr, sizeof(addr));
-
-	printk("Filter does not match. Address: %s connectable: %d\n",
-	       addr, connectable);
+	k_busy_wait(1);
+	flash_write(flash_dev, test_page_first_offset, &write_buff, 4);
+	k_busy_wait(1);
 }
 
 void scan_connecting_error(struct bt_scan_device_info *device_info)
@@ -226,13 +234,12 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 		adv_start();
 	}
 }
+static int enable_llpm_short_connection_interval(void);
 
 static void le_param_updated(struct bt_conn *conn, uint16_t interval,
 			     uint16_t latency, uint16_t timeout)
 {
-	if (interval == INTERVAL_LLPM) {
-		printk("Connection interval updated: LLPM (1 ms)\n");
-	}
+	enable_llpm_short_connection_interval();
 }
 
 static int enable_llpm_mode(void)
@@ -265,7 +272,8 @@ static int enable_llpm_short_connection_interval(void)
 {
 	int err;
 	struct net_buf *buf;
-
+	static uint16_t supervision_timeout = 300;
+	supervision_timeout++;
 	sdc_hci_cmd_vs_conn_update_t *cmd_conn_update;
 
 	buf = bt_hci_cmd_create(SDC_HCI_OPCODE_CMD_VS_CONN_UPDATE,
@@ -287,7 +295,7 @@ static int enable_llpm_short_connection_interval(void)
 	cmd_conn_update->connection_handle   = conn_handle;
 	cmd_conn_update->conn_interval_us    = INTERVAL_LLPM_US;
 	cmd_conn_update->conn_latency        = 0;
-	cmd_conn_update->supervision_timeout = 300;
+	cmd_conn_update->supervision_timeout = supervision_timeout;
 
 	err = bt_hci_cmd_send_sync(SDC_HCI_OPCODE_CMD_VS_CONN_UPDATE, buf, NULL);
 	if (err) {
@@ -366,6 +374,23 @@ static const struct bt_latency_client_cb latency_client_cb = {
 	.latency_response = latency_response_handler
 };
 
+static void setup(void)
+{
+	static size_t flash_size;
+	static size_t page_size;
+	int err = flash_area_open(FLASH_AREA_ID(storage),
+				  &flash_area);
+	test_page_first_offset = flash_area->fa_off;
+
+	if (err)
+	{
+		printk("setup errorcode: %x", err);
+	}
+	/* Obtain information about the layout and size of the flash */
+	flash_dev = flash_area->fa_dev;
+}
+
+
 static void test_run(void)
 {
 	int err;
@@ -409,7 +434,7 @@ static void test_run(void)
 		} else {
 			printk("Did not receive a latency response\n");
 		}
-
+		flash_write(flash_dev, test_page_first_offset, &write_buff, 4);
 		memset(&llpm_latency, 0, sizeof(llpm_latency));
 	}
 }
@@ -422,8 +447,8 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
 
 void main(void)
 {
+	
 	int err;
-
 #if defined(CONFIG_USB_DEVICE_STACK)
 	const struct device *uart_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
 	uint32_t dtr = 0;
@@ -440,7 +465,7 @@ void main(void)
 #endif
 
 	console_init();
-
+	setup();
 	printk("Starting Bluetooth LLPM example\n");
 
 	err = bt_enable(NULL);
@@ -474,10 +499,9 @@ void main(void)
 		char input_char = console_getchar();
 
 		printk("\n");
-
+		scan_init();
 		if (input_char == 'c') {
 			printk("Central. Starting scanning\n");
-			scan_init();
 			scan_start();
 			break;
 		} else if (input_char == 'p') {
@@ -496,6 +520,7 @@ void main(void)
 
 	for (;;) {
 		k_sem_take(&test_ready_sem, K_FOREVER);
+		scan_start();
 		test_run();
 	}
 }
