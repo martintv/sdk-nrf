@@ -236,16 +236,15 @@ static int hci_driver_send(struct net_buf *buf)
 	return err;
 }
 
-static void data_packet_process(uint8_t *hci_buf)
+static bool data_packet_process(uint8_t *hci_buf)
 {
-	struct net_buf *data_buf = bt_buf_get_rx(BT_BUF_ACL_IN, K_FOREVER);
+	struct net_buf *data_buf = bt_buf_get_rx(BT_BUF_ACL_IN, K_NO_WAIT);
 	struct bt_hci_acl_hdr *hdr = (void *)hci_buf;
 	uint16_t hf, handle, len;
 	uint8_t flags, pb, bc;
 
 	if (!data_buf) {
-		BT_ERR("No data buffer available");
-		return;
+		return false;
 	}
 
 	len = sys_le16_to_cpu(hdr->len);
@@ -260,6 +259,7 @@ static void data_packet_process(uint8_t *hci_buf)
 
 	net_buf_add_mem(data_buf, &hci_buf[0], len + sizeof(*hdr));
 	bt_recv(data_buf);
+	return true;
 }
 
 static bool event_packet_is_discardable(const uint8_t *hci_buf)
@@ -293,7 +293,7 @@ static bool event_packet_is_discardable(const uint8_t *hci_buf)
 	}
 }
 
-static void event_packet_process(uint8_t *hci_buf)
+static bool event_packet_process(uint8_t *hci_buf)
 {
 	bool discardable = event_packet_is_discardable(hci_buf);
 	struct bt_hci_evt_hdr *hdr = (void *)hci_buf;
@@ -322,47 +322,59 @@ static void event_packet_process(uint8_t *hci_buf)
 		BT_DBG("Event (0x%02x) len %u", hdr->evt, hdr->len);
 	}
 
-	evt_buf = bt_buf_get_evt(hdr->evt, discardable,
-				 discardable ? K_NO_WAIT : K_FOREVER);
+	evt_buf = bt_buf_get_evt(hdr->evt, discardable, K_NO_WAIT);
 
 	if (!evt_buf) {
 		if (discardable) {
 			BT_DBG("Discarding event");
-			return;
+			return true;
 		}
 
 		BT_ERR("No event buffer available");
-		return;
+		return false;
 	}
 
 	net_buf_add_mem(evt_buf, &hci_buf[0], hdr->len + sizeof(*hdr));
 	bt_recv(evt_buf);
+	return true;
 }
+
+static sdc_hci_msg_type_t hci_msg_postponed;
 
 static bool fetch_and_process_hci_msg(uint8_t *p_hci_buffer)
 {
 	int errcode;
 	sdc_hci_msg_type_t msg_type;
+	if (hci_msg_postponed == 0) {
+		errcode = MULTITHREADING_LOCK_ACQUIRE();
+		if (!errcode) {
+			errcode = hci_internal_msg_get(p_hci_buffer, &msg_type);
+			MULTITHREADING_LOCK_RELEASE();
+		}
 
-	errcode = MULTITHREADING_LOCK_ACQUIRE();
-	if (!errcode) {
-		errcode = hci_internal_msg_get(p_hci_buffer, &msg_type);
-		MULTITHREADING_LOCK_RELEASE();
+		if (errcode) {
+			return false;
+		}
 	}
-
-	if (errcode) {
-		return false;
+	if (hci_msg_postponed != 0) {
+		msg_type = hci_msg_postponed;
 	}
 
 	if (msg_type == SDC_HCI_MSG_TYPE_EVT) {
-		event_packet_process(p_hci_buffer);
+		if (!event_packet_process(p_hci_buffer)) {
+			hci_msg_postponed = msg_type;
+			return true;
+		}
 	} else if (msg_type == SDC_HCI_MSG_TYPE_DATA) {
-		data_packet_process(p_hci_buffer);
+		if (!data_packet_process(p_hci_buffer)) {
+			hci_msg_postponed = msg_type;
+			return true;
+		}
 	} else {
 		__ASSERT(false, "sdc_hci_msg_type_t has changed. This if-else needs a new branch");
 		return false;
 	}
-
+	hci_msg_postponed = 0;
 	return true;
 }
 
