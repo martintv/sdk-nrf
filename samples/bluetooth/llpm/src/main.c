@@ -80,7 +80,7 @@ void scan_filter_no_match(struct bt_scan_device_info *device_info,
 			  bool connectable)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
-
+	printk("r");
 	bt_addr_le_to_str(device_info->recv_info->addr, addr, sizeof(addr));
 	k_busy_wait(1);
 	flash_write(flash_dev, test_page_first_offset, &write_buff, 4);
@@ -274,6 +274,10 @@ static int enable_llpm_short_connection_interval(void)
 	struct net_buf *buf;
 	static uint16_t supervision_timeout = 300;
 	supervision_timeout++;
+	if (supervision_timeout>301)
+	{
+		supervision_timeout=299;
+	}
 	sdc_hci_cmd_vs_conn_update_t *cmd_conn_update;
 
 	buf = bt_hci_cmd_create(SDC_HCI_OPCODE_CMD_VS_CONN_UPDATE,
@@ -428,9 +432,9 @@ static void test_run(void)
 		k_sleep(K_MSEC(200)); /* wait for latency response */
 
 		if (llpm_latency.latency) {
-			printk("Transmission Latency: %u (us), CRC mismatches: %u\n",
-			       llpm_latency.latency,
-			       llpm_latency.crc_mismatches);
+			//printk("Transmission Latency: %u (us), CRC mismatches: %u\n",
+			//       llpm_latency.latency,
+			//       llpm_latency.crc_mismatches);
 		} else {
 			printk("Did not receive a latency response\n");
 		}
