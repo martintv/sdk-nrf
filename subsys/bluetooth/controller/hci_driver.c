@@ -30,6 +30,8 @@
 #include "ecdh.h"
 #include "radio_nrf5_txp.h"
 
+#include "/home/martintv/ncs/pin_debug_transport.h"
+
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_HCI_DRIVER)
 #define LOG_MODULE_NAME sdc_hci_driver
 #include "common/log.h"
@@ -144,12 +146,14 @@ extern void bt_ctlr_assert_handle(char *file, uint32_t line);
 
 void sdc_assertion_handler(const char *const file, const uint32_t line)
 {
+	DBP_TOGGLE(7);
 	bt_ctlr_assert_handle((char *) file, line);
 }
 
 #else /* !IS_ENABLED(CONFIG_BT_CTLR_ASSERT_HANDLER) */
 void sdc_assertion_handler(const char *const file, const uint32_t line)
 {
+	DBP_TOGGLE(7);
 	BT_ERR("SoftDevice Controller ASSERT: %s, %d", file, line);
 	k_oops();
 }
@@ -444,7 +448,6 @@ void hci_driver_receive_process(void)
 static void receive_work_handler(struct k_work *work)
 {
 	ARG_UNUSED(work);
-
 	hci_driver_receive_process();
 }
 
@@ -808,7 +811,7 @@ static int hci_driver_open(void)
 
 	err = MULTITHREADING_LOCK_ACQUIRE();
 	if (!err) {
-		err = sdc_enable(receive_signal_raise, sdc_mempool);
+		err = sdc_enable(hci_driver_receive_process, sdc_mempool);
 		MULTITHREADING_LOCK_RELEASE();
 	}
 	if (err < 0) {

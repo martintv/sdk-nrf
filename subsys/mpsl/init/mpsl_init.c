@@ -17,6 +17,7 @@
 #if defined(CONFIG_NRFX_DPPI)
 #include <nrfx_dppi.h>
 #endif
+#include "/home/martintv/ncs/pin_debug_transport.h"
 
 LOG_MODULE_REGISTER(mpsl_init, CONFIG_MPSL_LOG_LEVEL);
 
@@ -117,8 +118,10 @@ void m_assert_handler(const char *const file, const uint32_t line)
 }
 
 #else /* !IS_ENABLED(CONFIG_MPSL_ASSERT_HANDLER) */
+
 static void m_assert_handler(const char *const file, const uint32_t line)
 {
+	DBP_TOGGLE(7);
 	LOG_ERR("MPSL ASSERT: %s, %d", file, line);
 	k_oops();
 }

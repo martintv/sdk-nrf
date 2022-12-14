@@ -13,7 +13,7 @@
 #include <zephyr/usb/usb_device.h>
 #include <zephyr/drivers/uart.h>
 #endif
-
+#include "/home/martintv/ncs/pin_debug_transport.h"
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/gatt.h>
@@ -64,6 +64,14 @@ static struct {
 	uint32_t crc_mismatches;
 } llpm_latency;
 
+  /* Graviton, Hadron */
+  /* The definitions are adapted from nrf52840.h inside MDK internal version 8.30.2 */
+  /* The definitions for AMLI_RAMPRI_Type are of the same size for nrf52840 and nrf52833
+   * Graviton has one extra peripheral, QSPI, but the corresponding register in Hardron is marked as 'RESERVED'.
+   * This should not be an issue as the registers RAMPRI.RADIO and RAMPRI.CCM are located at the same location,
+   * relative to the AMLI base address, for both devices
+  */
+
 void scan_filter_match(struct bt_scan_device_info *device_info,
 		       struct bt_scan_filter_match *filter_match,
 		       bool connectable)
@@ -72,15 +80,15 @@ void scan_filter_match(struct bt_scan_device_info *device_info,
 
 	bt_addr_le_to_str(device_info->recv_info->addr, addr, sizeof(addr));
 
-	printk("Filters matched. Address: %s connectable: %d\n",
-	       addr, connectable);
+	//printk("Filters matched. Address: %s connectable: %d\n",
+	//       addr, connectable);
 }
 
 void scan_filter_no_match(struct bt_scan_device_info *device_info,
 			  bool connectable)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
-	printk("r");
+	//printk("r");
 	bt_addr_le_to_str(device_info->recv_info->addr, addr, sizeof(addr));
 	k_busy_wait(1);
 	flash_write(flash_dev, test_page_first_offset, &write_buff, 4);
@@ -239,7 +247,9 @@ static int enable_llpm_short_connection_interval(void);
 static void le_param_updated(struct bt_conn *conn, uint16_t interval,
 			     uint16_t latency, uint16_t timeout)
 {
-	enable_llpm_short_connection_interval();
+	if (conn_info.role == BT_CONN_ROLE_CENTRAL) {
+		enable_llpm_short_connection_interval();
+	}
 }
 
 static int enable_llpm_mode(void)
@@ -408,8 +418,6 @@ static void test_run(void)
 
 	/* Switch to LLPM short connection interval */
 	if (conn_info.role == BT_CONN_ROLE_CENTRAL) {
-		printk("Press any key to set LLPM short connection interval (1 ms)\n");
-		console_getchar();
 
 		if (enable_llpm_short_connection_interval()) {
 			printk("Enable LLPM short connection interval failed\n");
@@ -417,8 +425,6 @@ static void test_run(void)
 		}
 	}
 
-	printk("Press any key to start measuring transmission latency\n");
-	console_getchar();
 
 	/* Start sending the timestamp to its peer */
 	while (default_conn) {
@@ -451,7 +457,19 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
 
 void main(void)
 {
-	
+	DBP_PORTS_ENABLE;
+	for (uint32_t i = 4; i<16; i++)
+	{
+		DBP_ON(i);
+	}
+	for (uint32_t i = 4; i<16; i++)
+	{
+		DBP_OFF(i);
+	}
+	debug_pin_event_pulse(DBP_PIN(0), &NRF_RADIO->EVENTS_READY, &NRF_RADIO->EVENTS_DISABLED);
+	//debug_pin_event_pulse(DBP_PIN(1), &NRF_RADIO->EVENTS_RXREADY, &NRF_RADIO->EVENTS_DISABLED);
+	debug_pin_event(DBP_PIN(1), &NRF_CLOCK->EVENTS_HFCLKSTARTED);
+
 	int err;
 #if defined(CONFIG_USB_DEVICE_STACK)
 	const struct device *uart_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
@@ -471,8 +489,8 @@ void main(void)
 	console_init();
 	setup();
 	printk("Starting Bluetooth LLPM example\n");
-
 	err = bt_enable(NULL);
+
 	if (err) {
 		printk("Bluetooth init failed (err %d)\n", err);
 		return;
