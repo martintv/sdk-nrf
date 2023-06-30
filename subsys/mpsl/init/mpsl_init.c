@@ -88,6 +88,7 @@ ISR_DIRECT_DECLARE(mpsl_timer0_isr_wrapper)
 
 ISR_DIRECT_DECLARE(mpsl_rtc0_isr_wrapper)
 {
+	NRF_IPC_NS->PUBLISH_RECEIVE[1]= 0;
 	MPSL_IRQ_RTC0_Handler();
 
 	ISR_DIRECT_PM();
