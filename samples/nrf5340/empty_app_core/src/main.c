@@ -38,6 +38,12 @@ void disable_ram_and_wfi(register volatile uint32_t *reg_begin,
 
 void main(void)
 {
+	NRF_IPC->PUBLISH_RECEIVE[0] = 1<<31  | 0;
+	NRF_IPC->RECEIVE_CNF[0] = 1;
+	NRF_DPPIC->CHEN = 1<<0;
+
+	NRF_IPC->SUBSCRIBE_SEND[1] = 1<<31  | 0;
+	NRF_IPC->SEND_CNF[1] = 2;
 	/* Power off RAM and suspend CPU */
 	disable_ram_and_wfi(&NRF_VMC->RAM[0].POWER,
 			    &NRF_VMC->RAM[ARRAY_SIZE(NRF_VMC->RAM) - 1].POWER);
