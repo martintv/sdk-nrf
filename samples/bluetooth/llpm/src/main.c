@@ -210,7 +210,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	printk("Disconnected (reason %u)\n", reason);
-
+/*
 	test_ready = false;
 
 	if (default_conn) {
@@ -222,7 +222,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 		scan_start();
 	} else {
 		adv_start();
-	}
+	}*/
 }
 
 static void le_param_updated(struct bt_conn *conn, uint16_t interval,
@@ -378,49 +378,31 @@ static void test_run(void)
 	test_ready = false;
 
 	printk("Press any key to start measuring transmission latency\n");
-	console_getchar();
 
 	/* Start sending the timestamp to its peer */
 	while (default_conn) {
 		uint32_t time = k_cycle_get_32();
 
-		err = bt_latency_request(&latency_client, &time, sizeof(time));
+		err = bt_latency_request(&latency_client, &time, sizeof(time)/*+(rand()%10)*/);
 		if (err && err != -EALREADY) {
 			printk("Latency failed (err %d)\n", err);
 		}
 
-		k_sleep(K_MSEC(200)); /* wait for latency response */
-
-		if (llpm_latency.latency) {
+		while (!llpm_latency.latency)
+		{
+			k_sleep(K_MSEC(2)); /* wait for latency response */
+		}
+		static uint32_t i = 0;
+		i++;
+		if (i==50)
+		{
 			printk("Transmission Latency: %u (us), CRC mismatches: %u\n",
-			       llpm_latency.latency,
-			       llpm_latency.crc_mismatches);
-		} else {
-			printk("Did not receive a latency response\n");
+		    	   llpm_latency.latency,
+		       	llpm_latency.crc_mismatches);
+			i = 0;
 		}
 
 		memset(&llpm_latency, 0, sizeof(llpm_latency));
-		if (conn_info.role == BT_CONN_ROLE_CENTRAL) {
-			static int counter;
-			static uint16_t interval_us = INTERVAL_LLPM_US;
-
-			counter++;
-			/* Arbitrarily chosen number of measurments
-			 * to do before switching interval
-			 */
-			if (counter == 20) {
-				counter = 0;
-				if (interval_us == INTERVAL_LLPM_US) {
-					interval_us = INTERVAL_MIN_US;
-				} else {
-					interval_us = INTERVAL_LLPM_US;
-				}
-				if (vs_change_connection_interval(interval_us)) {
-					printk("Enable LLPM short connection interval failed\n");
-					return;
-				}
-			}
-		}
 	}
 }
 
@@ -500,7 +482,11 @@ int main(void)
 	while (true) {
 		printk("Choose device role - type c (central) or p (peripheral): ");
 
-		char input_char = console_getchar();
+		#if defined(NRF54L15_ENGA_XXAA)
+		char input_char = 'c';
+		#else
+		char input_char = 'p';
+		#endif
 
 		printk("\n");
 
