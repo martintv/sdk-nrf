@@ -27,6 +27,7 @@
 #include <bluetooth/services/hids.h>
 #include <zephyr/bluetooth/services/dis.h>
 #include <dk_buttons_and_leds.h>
+#include "mpsl.h"
 
 #define DEVICE_NAME     CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
@@ -783,6 +784,11 @@ static void bas_notify(void)
 int main(void)
 {
 	int err;
+	err = mpsl_clock_hfclk_request(NULL);
+	if (err) {
+		printk("mpsl_clock_hfclk_request failed (err %d)\n", err);
+		return 0;
+	}
 
 	printk("Starting Bluetooth Peripheral HIDS mouse example\n");
 
