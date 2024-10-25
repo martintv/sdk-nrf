@@ -784,11 +784,11 @@ static void bas_notify(void)
 int main(void)
 {
 	int err;
-	err = mpsl_clock_hfclk_request(NULL);
-	if (err) {
-		printk("mpsl_clock_hfclk_request failed (err %d)\n", err);
-		return 0;
-	}
+	// err = mpsl_clock_hfclk_request(NULL);
+	// if (err) {
+	// 	printk("mpsl_clock_hfclk_request failed (err %d)\n", err);
+	// 	return 0;
+	// }
 
 	printk("Starting Bluetooth Peripheral HIDS mouse example\n");
 
