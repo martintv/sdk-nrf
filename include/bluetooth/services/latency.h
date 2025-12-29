@@ -52,8 +52,12 @@ struct bt_latency {
 
 /** @brief Latency Service UUID. */
 
+#define BT_UUID_FALSE_LATENCY_VAL \
+	BT_UUID_128_ENCODE(0x67136e01, 0x58db, 0xf48c, 0x3446, 0xfdde58c0813a)
+
 #define BT_UUID_LATENCY_VAL \
-	BT_UUID_128_ENCODE(0x67136e01, 0x58db, 0xf39b, 0x3446, 0xfdde58c0813a)
+	BT_UUID_128_ENCODE(0x67136e01, 0x58db, 0xf38c, 0x3446, 0xfdde58c0813a)
+
 
 #define BT_UUID_LATENCY BT_UUID_DECLARE_128(BT_UUID_LATENCY_VAL)
 
